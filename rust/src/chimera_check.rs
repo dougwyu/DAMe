@@ -242,14 +242,15 @@ pub fn make_fas_seq_one_line(p: usize) -> Result<()> {
     Ok(())
 }
 
+type NoChimEntry = (Vec<String>, Vec<String>, Vec<String>, Vec<String>, Vec<String>);
+
 /// Parses Pool{p}.noChim.oneLiner.fasta and creates {tag1}_{tag2}_{pool}.noChim.txt files.
 ///
 /// FASTA header format: `>{primer}_{tag1}_{tag2}_{idnum};size={freq}`
 #[allow(unused_assignments)]
 pub fn make_no_chim_haps(p: usize) -> Result<()> {
     // HAP: key = "tag1_tag2_pool" → (primers, tag1s, tag2s, freqs, seqs)
-    let mut hap: HashMap<String, (Vec<String>, Vec<String>, Vec<String>, Vec<String>, Vec<String>)> =
-        HashMap::new();
+    let mut hap: HashMap<String, NoChimEntry> = HashMap::new();
 
     // Preserve insertion order for deterministic output
     let mut hap_order: Vec<String> = Vec::new();
@@ -269,8 +270,7 @@ pub fn make_no_chim_haps(p: usize) -> Result<()> {
         for line in reader.lines() {
             let line = line?;
             let line = line.trim_end_matches('\r');
-            if line.starts_with('>') {
-                let rest = &line[1..];
+            if let Some(rest) = line.strip_prefix('>') {
                 // format: {primer}_{tag1}_{tag2}_{idnum};size={freq}
                 let parts: Vec<&str> = rest.split('_').collect();
                 if parts.len() >= 3 {
