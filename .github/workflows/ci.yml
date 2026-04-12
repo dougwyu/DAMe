@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  python-tests:
+    name: Python ${{ matrix.python-version }} unit tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dame-py
+        run: pip install -e "python/[dev]"
+      - name: Run pytest
+        run: pytest python/tests/ -v
+
+  rust-tests:
+    name: Rust unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      - name: Run cargo test
+        working-directory: rust
+        run: cargo test --all
+
+  integration-tests:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    needs: [python-tests, rust-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      - name: Build dame binary
+        working-directory: rust
+        run: cargo build --release
+      - name: Install dame-py
+        run: pip install -e "python/[dev]"
+      - name: Add dame to PATH
+        run: echo "$GITHUB_WORKSPACE/rust/target/release" >> $GITHUB_PATH
+      - name: Run sort integration test
+        run: bash tests/integration/run_sort.sh
+      - name: Run rsi integration test
+        run: bash tests/integration/run_rsi.sh
+      - name: Run decollapse integration test
+        run: bash tests/integration/run_decollapse.sh
+      - name: Run filter integration test
+        run: bash tests/integration/run_filter.sh
+      - name: Run chimera integration test (skips if no usearch)
+        run: bash tests/integration/run_chimera.sh
+      - name: Run pipeline integration test
+        run: bash tests/integration/run_pipeline.sh
