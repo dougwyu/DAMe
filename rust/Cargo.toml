@@ -1,0 +1,22 @@
+[package]
+name = "dame"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "dame"
+path = "src/main.rs"
+
+[lib]
+name = "dame"
+path = "src/lib.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+ndarray = "0.15"
+anyhow = "1"
+indexmap = "2"
+
+[dev-dependencies]
+tempfile = "3"
