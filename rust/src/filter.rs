@@ -106,7 +106,7 @@ pub fn read_haps_for_a_sample(
 ) -> Result<HashMap<usize, Vec<Vec<String>>>> {
     let mut haps: HashMap<usize, Vec<Vec<String>>> = HashMap::new();
     for j in 0..x {
-        haps.insert(j, Vec::new());
+        let entry = haps.entry(j).or_default();
         if let Some(lines) = ps_ins_lines.get(&j) {
             if i >= lines.len() {
                 continue;
@@ -121,7 +121,6 @@ pub fn read_haps_for_a_sample(
             let reader = BufReader::new(
                 File::open(path).with_context(|| format!("opening {}", path))?,
             );
-            let entry = haps.get_mut(&j).unwrap();
             for line in reader.lines() {
                 let line = line?;
                 let row: Vec<String> = line.split('\t').map(|s| s.to_string()).collect();
