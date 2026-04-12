@@ -113,7 +113,7 @@ pub fn read_tags(path: &str) -> Result<HashMap<String, Vec<String>>> {
         }
         let seq = parts[0];
         let name = parts[1];
-        let entry = tags.entry(name.to_string()).or_insert_with(Vec::new);
+        let entry = tags.entry(name.to_string()).or_default();
         entry.push(seq.to_string());
         entry.push(rc(seq));
     }
@@ -122,11 +122,11 @@ pub fn read_tags(path: &str) -> Result<HashMap<String, Vec<String>>> {
 }
 
 /// Read a Primers file (Name\tFwdSeq\tRevSeq per line).
-/// Returns HashMap<Name, PrimerEntry>
-pub fn read_primers(path: &str) -> Result<HashMap<String, PrimerEntry>> {
+/// Returns IndexMap<Name, PrimerEntry>
+pub fn read_primers(path: &str) -> Result<IndexMap<String, PrimerEntry>> {
     let file = File::open(path).with_context(|| format!("Cannot open primers file: {path}"))?;
     let reader = BufReader::new(file);
-    let mut primers: HashMap<String, PrimerEntry> = HashMap::new();
+    let mut primers: IndexMap<String, PrimerEntry> = IndexMap::new();
 
     for line in reader.lines() {
         let line = line?;
@@ -195,7 +195,7 @@ pub fn fill_hap(hap: &mut Hap, tag1: &str, tag2: &str, primer_name: &str, betwee
 /// Returns Some(PieceInfo) on success, None on failure/error.
 pub fn get_pieces_info(
     line: &str,
-    primers: &HashMap<String, PrimerEntry>,
+    primers: &IndexMap<String, PrimerEntry>,
     tags: &HashMap<String, Vec<String>>,
     keep_primers_seq: bool,
 ) -> Option<PieceInfo> {
@@ -214,6 +214,9 @@ pub fn get_pieces_info(
                 } else {
                     (m_end.start(), m_end.end())
                 };
+                if prim_ini_prim >= prim_fin_prim {
+                    return None;
+                }
                 let between = &line[prim_ini_prim..prim_fin_prim];
                 if between.is_empty() {
                     return None;
@@ -251,6 +254,9 @@ pub fn get_pieces_info(
                     } else {
                         (m_end.start(), m_end.end())
                     };
+                    if prim_ini_prim >= prim_fin_prim {
+                        return None;
+                    }
                     let between_raw = &line[prim_ini_prim..prim_fin_prim];
                     if between_raw.is_empty() {
                         return None;

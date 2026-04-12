@@ -110,7 +110,7 @@ fn make_test_tags() -> HashMap<String, Vec<String>> {
     tags
 }
 
-fn make_test_primers() -> HashMap<String, dame::sort::PrimerEntry> {
+fn make_test_primers() -> indexmap::IndexMap<String, dame::sort::PrimerEntry> {
     let dir = tempdir().unwrap();
     let path = dir.path().join("primers.txt");
     let mut f = std::fs::File::create(&path).unwrap();
@@ -214,4 +214,25 @@ fn test_run_sort_produces_output_files() {
     assert_eq!(row[1], "Tag2");
     assert_eq!(row[2], "2", "Should have 2 unique sequences");
     assert_eq!(row[3], "4", "Sum of counts should be 4 (2+2)");
+}
+
+#[test]
+fn test_get_pieces_info_no_panic_on_inverted_primers() {
+    // Both primers present but in wrong order: TGCA then ACGT
+    // Without the guard, prim_ini_prim > prim_fin_prim and &line[a..b] panics.
+    // With the guard, this returns None safely.
+    let dir = tempdir().unwrap();
+    let tag_file = dir.path().join("tags.txt");
+    std::fs::write(&tag_file, "AAAA\tTag1\nCCCC\tTag2\n").unwrap();
+    let prim_file = dir.path().join("primers.txt");
+    std::fs::write(&prim_file, "CO1\tACGT\tTGCA\n").unwrap();
+    let tags = read_tags(tag_file.to_str().unwrap()).unwrap();
+    let primers = read_primers(prim_file.to_str().unwrap()).unwrap();
+    // RC(R)=TGCA comes first, F primer ACGT comes second — inverted orientation
+    // In forward branch: finds ACGT at pos 8, then RC(R)=TGCA would match at pos 4 (before start)
+    // → prim_ini_prim=12 > prim_fin_prim=4 → guard triggers → returns None, no panic
+    let bad_read = "AAAATGCAACGTCCCC"; // TGCA at [4,8), ACGT at [8,12) — end primer before start
+    let result = get_pieces_info(bad_read, &primers, &tags, false);
+    // Just verify it returns without panicking; None is expected here
+    let _ = result;
 }
