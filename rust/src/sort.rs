@@ -330,37 +330,20 @@ pub fn run(args: SortArgs) -> Result<()> {
     let mut hap: Hap = IndexMap::new();
     let mut count_errors: u32 = 0;
 
-    let file = File::open(&args.fastq).with_context(|| format!("Cannot open FASTQ: {}", args.fastq))?;
-    let mut reader = BufReader::new(file);
-    let mut line_buf = String::new();
+    let mut reader = needletail::parse_fastx_file(&args.fastq)
+        .with_context(|| format!("Cannot open FASTQ: {}", args.fastq))?;
 
-    loop {
-        // Read header line
-        line_buf.clear();
-        let n = reader.read_line(&mut line_buf)?;
-        if n == 0 {
-            break; // EOF
-        }
-        // Read seq line
-        line_buf.clear();
-        let n = reader.read_line(&mut line_buf)?;
-        if n == 0 {
-            break;
-        }
-        let seq = line_buf.trim_end_matches('\n').trim_end_matches('\r').to_string();
-
-        // Read "+" line
-        line_buf.clear();
-        reader.read_line(&mut line_buf)?;
-        // Read qual line
-        line_buf.clear();
-        reader.read_line(&mut line_buf)?;
-
+    while let Some(record) = reader.next() {
+        let seqrec = record.context("Error reading FASTQ record")?;
+        let seq_bytes = seqrec.seq();
+        let seq = match std::str::from_utf8(&seq_bytes) {
+            Ok(s) => s,
+            Err(_) => { count_errors += 1; continue; }
+        };
         if seq.is_empty() {
             continue;
         }
-
-        match get_pieces_info(&seq, &primers, &tags, args.keep_primers_seq) {
+        match get_pieces_info(seq, &primers, &tags, args.keep_primers_seq) {
             Some(info) => {
                 fill_hap(&mut hap, &info.tag1, &info.tag2, &info.primer_name, &info.between);
             }

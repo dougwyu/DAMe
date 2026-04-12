@@ -17,6 +17,7 @@ regex = "1"
 ndarray = "0.15"
 anyhow = "1"
 indexmap = "2"
+needletail = "0.5"
 
 [dev-dependencies]
 tempfile = "3"
