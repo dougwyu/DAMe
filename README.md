@@ -145,8 +145,8 @@ See `tutorial/README.md` for a full walkthrough covering all input file
 formats, every command-line flag, output file formats, and a worked example
 dataset that demonstrates all filter outcomes.
 
-The original DAMe v1.0 manual is preserved as `DAMe_Manual.pdf` and
-`README.txt`.
+The original DAMe v1.0 manual, scripts, and example data are preserved in
+`DAMe_1.0/` (`bin/`, `example/`, `README.txt`, `DAMe_Manual.pdf`).
 
 ## Input file formats
 
@@ -195,9 +195,8 @@ python/      Python 3 source (dame-py entry point)
 rust/        Rust source (dame binary)
 tests/       Developer and CI tests
 tutorial/    Tutorial dataset and walkthrough
-example/     Original DAMe v1.0 example data
-bin/         Original DAMe v1.0 Python 2 scripts (archived)
 docs/        Design specs and implementation plans
+DAMe_1.0/    Original DAMe v1.0 (Python 2 scripts, example data, manual)
 ```
 
 ## Citation

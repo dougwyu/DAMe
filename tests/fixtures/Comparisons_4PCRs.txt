@@ -1,1 +1,1 @@
-../../example/Comparisons_4PCRs.txt
+../../DAMe_1.0/example/Comparisons_4PCRs.txt
