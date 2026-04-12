@@ -1,5 +1,11 @@
 .claude/settings.local.json
 
+# dame sort output files (if accidentally run from repo root)
+/SummaryCounts.txt
+/tag*.txt
+/PS1_files.txt
+/PS2_files.txt
+
 # Python build artifacts
 *.egg-info/
 __pycache__/

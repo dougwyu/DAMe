@@ -22,14 +22,24 @@ during sort.  IUPAC ambiguity codes are supported in primer sequences.
 
 ## Performance
 
-Benchmarked on the tutorial dataset (392 single-end reads, 1 pool):
+Small dataset — tutorial (392 reads, 1 pool):
 
 | Step | Python 3 | Rust | Speedup |
 |------|----------|------|---------|
 | sort | ~280 ms | ~38 ms | ~7× |
 
-Rust startup overhead dominates at small scale; the speedup grows substantially
-on datasets with tens of thousands of reads per pool.
+Large dataset — synthetic benchmark (196,000 reads, 2 pools of ~100k reads each):
+
+| Step | Python 3 | Rust | Speedup |
+|------|----------|------|---------|
+| sort | ~510 ms/pool | ~101 ms/pool | ~5× |
+| filter | ~170 ms | ~41 ms | ~4× |
+| rsi | ~165 ms | ~42 ms | ~4× |
+
+Rust startup overhead dominates at small scale; on large pools (100k reads)
+the sort speedup settles at ~5×.  The filter and rsi steps are I/O-bound on
+the collapsed sequence files, where startup overhead is still a significant
+fraction of total time.
 
 ## Quick start
 
