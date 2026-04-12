@@ -1,0 +1,2 @@
+pool1/tag1_tag2.txt
+pool1/tag5_tag6.txt

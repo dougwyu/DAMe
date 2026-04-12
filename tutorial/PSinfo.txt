@@ -1,0 +1,4 @@
+Sample1	tag1	tag2	1
+Sample1	tag3	tag4	2
+Sample2	tag5	tag6	1
+Sample2	tag7	tag8	2

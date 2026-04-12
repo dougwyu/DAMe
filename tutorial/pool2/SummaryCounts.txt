@@ -1,0 +1,4 @@
+#tagName1	tagName2	NumUniqSeqs	SumTotalFreq
+tag1	tag6	1	80
+tag3	tag4	3	91
+tag7	tag8	3	41
