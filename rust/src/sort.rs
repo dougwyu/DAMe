@@ -336,10 +336,8 @@ pub fn run(args: SortArgs) -> Result<()> {
     while let Some(record) = reader.next() {
         let seqrec = record.context("Error reading FASTQ record")?;
         let seq_bytes = seqrec.seq();
-        let seq = match std::str::from_utf8(&seq_bytes) {
-            Ok(s) => s,
-            Err(_) => { count_errors += 1; continue; }
-        };
+        let seq = std::str::from_utf8(&seq_bytes)
+            .context("Non-UTF-8 bytes in FASTQ sequence — file may be corrupt")?;
         if seq.is_empty() {
             continue;
         }
