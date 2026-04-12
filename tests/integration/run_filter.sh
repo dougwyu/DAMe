@@ -57,8 +57,14 @@ for f in FilteredReads.fna Comparisons_2PCRs.txt; do
 done
 
 echo "==> Comparing FilteredReads.fna..."
-if ! diff <(sort "$TMPPY/FilteredReads.fna") <(sort "$TMPRS/FilteredReads.fna"); then
-    echo "FAIL: FilteredReads.fna differs between dame-py and dame"
+# Sort FASTA by sequence line for order-independent comparison.
+# dame-py and dame may assign different _N indices but must contain the same sequences.
+fasta_sequences() {
+    # Extract sequence lines only (non-header lines), sort them
+    grep -v "^>" "$1" | sort
+}
+if ! diff <(fasta_sequences "$TMPPY/FilteredReads.fna") <(fasta_sequences "$TMPRS/FilteredReads.fna"); then
+    echo "FAIL: FilteredReads.fna sequences differ between dame-py and dame"
     exit 1
 fi
 
