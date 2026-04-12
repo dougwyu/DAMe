@@ -1,4 +1,5 @@
 .claude/settings.local.json
+.worktrees/
 
 # dame sort output files (if accidentally run from repo root)
 /SummaryCounts.txt
