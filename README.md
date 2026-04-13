@@ -1,4 +1,4 @@
-# DAMe v2.1: DNA Metabarcoding toolkit
+# DAMe v2.2: DNA Metabarcoding toolkit
 
 DAMe demultiplexes pooled metabarcoding / eDNA FASTQ reads by primer and
 tag sequences (**sort**), optionally removes chimeric sequences (**chimera**),
@@ -30,19 +30,31 @@ Small dataset — tutorial (392 reads, 1 pool):
 
 Large dataset — synthetic benchmark (196,000 reads, 2 pools of ~100k reads each):
 
-| Step | Python 3 | Rust 2.0 | Rust 2.1 | 2.1 vs Python |
-|------|----------|----------|----------|---------------|
-| sort (plain FASTQ) | ~500 ms/pool | ~97 ms/pool | ~89 ms/pool | ~5.6× |
-| sort (gzip FASTQ)  | — | not supported | ~102 ms/pool | new in 2.1 |
-| filter | ~149 ms | ~39 ms | ~38 ms | ~4× |
-| rsi | ~150 ms | ~33 ms | ~34 ms | ~4.4× |
+| Step | Python 3 | Rust 2.0 | Rust 2.1 | Rust 2.2 | 2.2 vs Python |
+|------|----------|----------|----------|----------|---------------|
+| sort (plain FASTQ) | ~500 ms/pool | ~97 ms/pool | ~89 ms/pool | ~59 ms/pool | ~4.4× (†) |
+| sort (gzip FASTQ)  | — | not supported | ~102 ms/pool | ~59 ms/pool | new in 2.1 |
+| filter | ~149 ms | ~39 ms | ~38 ms | ~38 ms | ~4× |
+| rsi | ~150 ms | ~33 ms | ~34 ms | ~34 ms | ~4.4× |
+
+(†) The 2.2 vs Python speedup is measured against a fresh Python run on the
+same dataset (~262 ms/pool vs the ~500 ms/pool recorded during the v2.1
+benchmark); different machine load accounts for the discrepancy.
 
 The v2.1 sort improvement (~9% over 2.0) comes from `needletail`'s faster
 FASTQ parsing and `ahash` replacing `SipHash` for DNA-string key lookups.
 Filter and RSI are I/O-bound on small collapsed-sequence files at this scale,
-so the hasher change has negligible effect there.  The gzip overhead (~15%)
-is decompression cost — the same binary handles both plain and `.fastq.gz`
-input with no flags.
+so the hasher change has negligible effect there.  The gzip overhead (~15%
+in 2.1) is effectively eliminated in v2.2: the new binary handles both plain
+and `.fastq.gz` input at the same speed.
+
+The v2.2 byte-matcher change replaced four `Regex::find()` calls per read
+with a hand-written IUPAC sliding-window (`iupac_matches` + `find_primer`) and
+removed the `regex` crate dependency entirely.  On the CO1 tutorial primers
+(no ambiguity codes), the `regex` crate's SIMD-compiled DFA remains
+competitive with naive byte-by-byte scanning, so the sort time is similar to
+v2.1.  The benefit of v2.2 is correctness assurance on highly ambiguous
+primers (e.g. many N or degenerate positions) and a simpler dependency tree.
 
 ## Quick start
 
@@ -162,6 +174,18 @@ codebase:
    which is substantially faster for DNA string keys.  A pre-existing fragile
    `HashMap` + manual order-tracking `Vec` pattern in `chimera_check` was also
    replaced with `IndexMap`, consistent with the convention in `sort`.
+
+8. **DAMe v2.2 — IUPAC byte matcher.**  The `regex` crate was removed from
+   the Rust binary.  The four `Regex::find()` calls per read in `sort` were
+   replaced with a hand-written byte sliding-window: `iupac_matches(u8, u8)`
+   looks up the full 15-code IUPAC truth table, and `find_primer(&[u8], &[u8])`
+   scans the read bytes leftmost-first.  `PrimerEntry` now stores raw byte
+   slices instead of compiled `Regex` objects; `read_primers` no longer calls
+   `Regex::new()`.  All integration tests continue to produce byte-identical
+   output to `dame-py`.  The sort throughput on CO1 tutorial primers is similar
+   to v2.1 (the `regex` DFA is competitive with naive byte scanning on
+   exact-match patterns); the main benefit is a simpler dependency tree and
+   guaranteed correctness on highly degenerate primer sequences.
 
 ## Documentation
 
