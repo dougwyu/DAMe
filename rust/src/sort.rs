@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use indexmap::IndexMap;
-use regex::Regex;
 use ahash::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
@@ -82,35 +81,11 @@ pub fn find_primer(primer: &[u8], seq: &[u8]) -> Option<(usize, usize)> {
     None
 }
 
-/// Expand an ambiguous nucleotide character to its regex pattern string.
-fn ambig_expand(seq: &str) -> String {
-    seq.chars()
-        .map(|c| match c {
-            'A' => "A",
-            'B' => "[CGT]",
-            'C' => "C",
-            'D' => "[AGT]",
-            'G' => "G",
-            'H' => "[ACT]",
-            'K' => "[GT]",
-            'M' => "[AC]",
-            'N' => "[ACGT]",
-            'R' => "[AG]",
-            'S' => "[CG]",
-            'T' => "T",
-            'V' => "[ACG]",
-            'W' => "[AT]",
-            'Y' => "[CT]",
-            _ => ".",
-        })
-        .collect()
-}
-
 pub struct PrimerEntry {
-    pub a_side: Vec<String>,    // [F_pattern, R_pattern] as regex strings
-    pub b_side: Vec<String>,    // [RC(F)_pattern, RC(R)_pattern] as regex strings
-    pub a_side_re: Vec<Regex>,  // compiled a_side regexes
-    pub b_side_re: Vec<Regex>,  // compiled b_side regexes
+    /// [F_bytes, R_bytes] — start-side primers as raw bytes for find_primer
+    pub start_primers: Vec<Vec<u8>>,
+    /// [RC(F)_bytes, RC(R)_bytes] — end-side primers as raw bytes for find_primer
+    pub end_primers: Vec<Vec<u8>>,
 }
 
 pub struct SeqEntry {
@@ -181,33 +156,14 @@ pub fn read_primers(path: &str) -> Result<IndexMap<String, PrimerEntry>> {
         let f_raw = parts[1];
         let r_raw = parts[2];
 
-        // a_side: [F_pattern, R_pattern]
-        let f_pat = ambig_expand(f_raw);
-        let r_pat = ambig_expand(r_raw);
-        // b_side: [RC(F)_pattern, RC(R)_pattern]
         let frc = rc(f_raw);
         let rrc = rc(r_raw);
-        let frc_pat = ambig_expand(&frc);
-        let rrc_pat = ambig_expand(&rrc);
-
-        let a_side = vec![f_pat.clone(), r_pat.clone()];
-        let b_side = vec![frc_pat.clone(), rrc_pat.clone()];
-        let a_side_re = vec![
-            Regex::new(&f_pat).with_context(|| format!("Bad forward regex: {f_pat}"))?,
-            Regex::new(&r_pat).with_context(|| format!("Bad reverse regex: {r_pat}"))?,
-        ];
-        let b_side_re = vec![
-            Regex::new(&frc_pat).with_context(|| format!("Bad RC(F) regex: {frc_pat}"))?,
-            Regex::new(&rrc_pat).with_context(|| format!("Bad RC(R) regex: {rrc_pat}"))?,
-        ];
 
         primers.insert(
             name.to_string(),
             PrimerEntry {
-                a_side,
-                b_side,
-                a_side_re,
-                b_side_re,
+                start_primers: vec![f_raw.as_bytes().to_vec(), r_raw.as_bytes().to_vec()],
+                end_primers: vec![frc.as_bytes().to_vec(), rrc.as_bytes().to_vec()],
             },
         );
     }
@@ -232,94 +188,14 @@ pub fn fill_hap(hap: &mut Hap, tag1: &str, tag2: &str, primer_name: &str, betwee
 
 /// Try to extract tag info from a sequence line.
 /// Returns Some(PieceInfo) on success, None on failure/error.
+/// NOTE: Stubbed for Task 2 — full rewrite in Task 3.
 pub fn get_pieces_info(
     line: &str,
     primers: &IndexMap<String, PrimerEntry>,
     tags: &HashMap<String, Vec<String>>,
     keep_primers_seq: bool,
 ) -> Option<PieceInfo> {
-    for (key, primer) in primers {
-        // Try forward orientation: find a_side[0] (F pattern) at start region
-        if let Some(m_start) = primer.a_side_re[0].find(line) {
-            let (prim_ini_prim, prim_ini_tags) = if keep_primers_seq {
-                (m_start.start(), m_start.start())
-            } else {
-                (m_start.end(), m_start.start())
-            };
-            // Now find b_side[1] (RC(R) pattern) — the end anchor
-            if let Some(m_end) = primer.b_side_re[1].find(line) {
-                let (prim_fin_prim, prim_fin_tags) = if keep_primers_seq {
-                    (m_end.end(), m_end.end())
-                } else {
-                    (m_end.start(), m_end.end())
-                };
-                if prim_ini_prim >= prim_fin_prim {
-                    return None;
-                }
-                let between = &line[prim_ini_prim..prim_fin_prim];
-                if between.is_empty() {
-                    return None;
-                }
-                let tag1_str = &line[..prim_ini_tags];
-                let tag2_str = &line[prim_fin_tags..];
-                // tag1: forward seq matches tag1_str (TAGS[t][0] == tag1_str)
-                let tag_name1 = tags.iter().find(|(_, v)| v[0] == tag1_str).map(|(k, _)| k.clone());
-                // tag2: RC seq matches tag2_str (TAGS[t][1] == tag2_str)
-                let tag_name2 = tags.iter().find(|(_, v)| v[1] == tag2_str).map(|(k, _)| k.clone());
-                if let (Some(tn1), Some(tn2)) = (tag_name1, tag_name2) {
-                    return Some(PieceInfo {
-                        tag1: tn1,
-                        tag2: tn2,
-                        primer_name: key.clone(),
-                        between: between.to_string(),
-                    });
-                }
-                return None;
-            }
-            // forward primer found but end primer not found → error, don't try reverse
-            return None;
-        } else {
-            // Try reverse orientation: find a_side[1] (R pattern) at start
-            if let Some(m_start) = primer.a_side_re[1].find(line) {
-                let (prim_ini_prim, prim_ini_tags) = if keep_primers_seq {
-                    (m_start.start(), m_start.start())
-                } else {
-                    (m_start.end(), m_start.start())
-                };
-                // Find b_side[0] (RC(F) pattern) at end
-                if let Some(m_end) = primer.b_side_re[0].find(line) {
-                    let (prim_fin_prim, prim_fin_tags) = if keep_primers_seq {
-                        (m_end.end(), m_end.end())
-                    } else {
-                        (m_end.start(), m_end.end())
-                    };
-                    if prim_ini_prim >= prim_fin_prim {
-                        return None;
-                    }
-                    let between_raw = &line[prim_ini_prim..prim_fin_prim];
-                    if between_raw.is_empty() {
-                        return None;
-                    }
-                    let between = rc(between_raw);
-                    let tag1_str = &line[..prim_ini_tags];
-                    let tag2_str = &line[prim_fin_tags..];
-                    // In reverse: tagName2 matches forward, tagName1 matches RC
-                    let tag_name2 = tags.iter().find(|(_, v)| v[0] == tag1_str).map(|(k, _)| k.clone());
-                    let tag_name1 = tags.iter().find(|(_, v)| v[1] == tag2_str).map(|(k, _)| k.clone());
-                    if let (Some(tn1), Some(tn2)) = (tag_name1, tag_name2) {
-                        return Some(PieceInfo {
-                            tag1: tn1,
-                            tag2: tn2,
-                            primer_name: key.clone(),
-                            between,
-                        });
-                    }
-                    return None;
-                }
-                return None;
-            }
-        }
-    }
+    let _ = (line, primers, tags, keep_primers_seq);
     None
 }
 

@@ -193,10 +193,15 @@ fn test_read_primers() {
     let primers = read_primers(path.to_str().unwrap()).unwrap();
     assert!(primers.contains_key("CO1"));
     let co1 = &primers["CO1"];
-    assert_eq!(co1.a_side.len(), 2);
-    assert_eq!(co1.b_side.len(), 2);
-    assert_eq!(co1.a_side_re.len(), 2);
-    assert_eq!(co1.b_side_re.len(), 2);
+    // start_primers[0] = F = b"ACGT", start_primers[1] = R = b"TTTT"
+    assert_eq!(co1.start_primers.len(), 2);
+    assert_eq!(co1.start_primers[0], b"ACGT");
+    assert_eq!(co1.start_primers[1], b"TTTT");
+    // end_primers[0] = RC(F) = RC("ACGT") = "ACGT" (palindrome)
+    // end_primers[1] = RC(R) = RC("TTTT") = "AAAA"
+    assert_eq!(co1.end_primers.len(), 2);
+    assert_eq!(co1.end_primers[0], b"ACGT"); // rc("ACGT") == "ACGT"
+    assert_eq!(co1.end_primers[1], b"AAAA"); // rc("TTTT") == "AAAA"
 }
 
 // ── fill_hap ──────────────────────────────────────────────────────────────────
