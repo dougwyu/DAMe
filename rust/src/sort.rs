@@ -188,14 +188,92 @@ pub fn fill_hap(hap: &mut Hap, tag1: &str, tag2: &str, primer_name: &str, betwee
 
 /// Try to extract tag info from a sequence line.
 /// Returns Some(PieceInfo) on success, None on failure/error.
-/// NOTE: Stubbed for Task 2 — full rewrite in Task 3.
 pub fn get_pieces_info(
     line: &str,
     primers: &IndexMap<String, PrimerEntry>,
     tags: &HashMap<String, Vec<String>>,
     keep_primers_seq: bool,
 ) -> Option<PieceInfo> {
-    let _ = (line, primers, tags, keep_primers_seq);
+    let seq = line.as_bytes();
+
+    for (key, primer) in primers {
+        // Try forward orientation: start_primers[0] (F) at left, end_primers[1] (RC(R)) at right
+        if let Some((fwd_start, fwd_end)) = find_primer(&primer.start_primers[0], seq) {
+            let (prim_ini_prim, prim_ini_tags) = if keep_primers_seq {
+                (fwd_start, fwd_start)
+            } else {
+                (fwd_end, fwd_start)
+            };
+            if let Some((rev_start, rev_end)) = find_primer(&primer.end_primers[1], seq) {
+                let (prim_fin_prim, prim_fin_tags) = if keep_primers_seq {
+                    (rev_end, rev_end)
+                } else {
+                    (rev_start, rev_end)
+                };
+                if prim_ini_prim >= prim_fin_prim {
+                    return None;
+                }
+                let between = &line[prim_ini_prim..prim_fin_prim];
+                if between.is_empty() {
+                    return None;
+                }
+                let tag1_str = &line[..prim_ini_tags];
+                let tag2_str = &line[prim_fin_tags..];
+                let tag_name1 = tags.iter().find(|(_, v)| v[0] == tag1_str).map(|(k, _)| k.clone());
+                let tag_name2 = tags.iter().find(|(_, v)| v[1] == tag2_str).map(|(k, _)| k.clone());
+                if let (Some(tn1), Some(tn2)) = (tag_name1, tag_name2) {
+                    return Some(PieceInfo {
+                        tag1: tn1,
+                        tag2: tn2,
+                        primer_name: key.clone(),
+                        between: between.to_string(),
+                    });
+                }
+                return None;
+            }
+            // Forward start primer found but end primer not found → error
+            return None;
+        } else {
+            // Try reverse orientation: start_primers[1] (R) at left, end_primers[0] (RC(F)) at right
+            if let Some((fwd_start, fwd_end)) = find_primer(&primer.start_primers[1], seq) {
+                let (prim_ini_prim, prim_ini_tags) = if keep_primers_seq {
+                    (fwd_start, fwd_start)
+                } else {
+                    (fwd_end, fwd_start)
+                };
+                if let Some((rev_start, rev_end)) = find_primer(&primer.end_primers[0], seq) {
+                    let (prim_fin_prim, prim_fin_tags) = if keep_primers_seq {
+                        (rev_end, rev_end)
+                    } else {
+                        (rev_start, rev_end)
+                    };
+                    if prim_ini_prim >= prim_fin_prim {
+                        return None;
+                    }
+                    let between_raw = &line[prim_ini_prim..prim_fin_prim];
+                    if between_raw.is_empty() {
+                        return None;
+                    }
+                    let between = rc(between_raw);
+                    let tag1_str = &line[..prim_ini_tags];
+                    let tag2_str = &line[prim_fin_tags..];
+                    // In reverse orientation: tag roles are swapped
+                    let tag_name2 = tags.iter().find(|(_, v)| v[0] == tag1_str).map(|(k, _)| k.clone());
+                    let tag_name1 = tags.iter().find(|(_, v)| v[1] == tag2_str).map(|(k, _)| k.clone());
+                    if let (Some(tn1), Some(tn2)) = (tag_name1, tag_name2) {
+                        return Some(PieceInfo {
+                            tag1: tn1,
+                            tag2: tn2,
+                            primer_name: key.clone(),
+                            between,
+                        });
+                    }
+                    return None;
+                }
+                return None;
+            }
+        }
+    }
     None
 }
 
