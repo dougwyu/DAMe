@@ -75,7 +75,7 @@ pub fn find_primer(primer: &[u8], seq: &[u8]) -> Option<(usize, usize)> {
         return None;
     }
     for i in 0..=(slen - plen) {
-        if primer.iter().zip(&seq[i..]).all(|(&p, &s)| iupac_matches(p, s)) {
+        if primer.iter().zip(&seq[i..i + plen]).all(|(&p, &s)| iupac_matches(p, s)) {
             return Some((i, i + plen));
         }
     }

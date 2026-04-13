@@ -95,6 +95,15 @@ fn test_iupac_matches_ambiguous() {
     assert!(!iupac_matches(b'V', b'T'));
 }
 
+#[test]
+fn test_iupac_matches_non_acgt_read_byte() {
+    use dame::sort::iupac_matches;
+    // Lowercase or non-ACGT read bytes are not valid FASTQ bases; wildcard returns false
+    assert!(!iupac_matches(b'A', b'a'));
+    assert!(!iupac_matches(b'N', b'a'));
+    assert!(!iupac_matches(b'N', b'n'));
+}
+
 // ── find_primer ───────────────────────────────────────────────────────────────
 
 #[test]
@@ -359,6 +368,6 @@ fn test_get_pieces_info_no_panic_on_inverted_primers() {
     // → prim_ini_prim=12 > prim_fin_prim=4 → guard triggers → returns None, no panic
     let bad_read = "AAAATGCAACGTCCCC"; // TGCA at [4,8), ACGT at [8,12) — end primer before start
     let result = get_pieces_info(bad_read, &primers, &tags, false);
-    // Just verify it returns without panicking; None is expected here
-    let _ = result;
+    // Guard should return None, not panic
+    assert!(result.is_none());
 }
