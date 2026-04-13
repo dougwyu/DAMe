@@ -24,22 +24,25 @@ during sort.  IUPAC ambiguity codes are supported in primer sequences.
 
 Small dataset — tutorial (392 reads, 1 pool):
 
-| Step | Python 3 | Rust | Speedup |
-|------|----------|------|---------|
-| sort | ~280 ms | ~38 ms | ~7× |
+| Step | Python 3 | Rust 2.0 | Rust 2.1 | 2.1 vs Python |
+|------|----------|----------|----------|---------------|
+| sort | ~280 ms | ~38 ms | ~36 ms | ~8× |
 
 Large dataset — synthetic benchmark (196,000 reads, 2 pools of ~100k reads each):
 
-| Step | Python 3 | Rust | Speedup |
-|------|----------|------|---------|
-| sort | ~510 ms/pool | ~101 ms/pool | ~5× |
-| filter | ~170 ms | ~41 ms | ~4× |
-| rsi | ~165 ms | ~42 ms | ~4× |
+| Step | Python 3 | Rust 2.0 | Rust 2.1 | 2.1 vs Python |
+|------|----------|----------|----------|---------------|
+| sort (plain FASTQ) | ~500 ms/pool | ~97 ms/pool | ~89 ms/pool | ~5.6× |
+| sort (gzip FASTQ)  | — | not supported | ~102 ms/pool | new in 2.1 |
+| filter | ~149 ms | ~39 ms | ~38 ms | ~4× |
+| rsi | ~150 ms | ~33 ms | ~34 ms | ~4.4× |
 
-Rust startup overhead dominates at small scale; on large pools (100k reads)
-the sort speedup settles at ~5×.  The filter and rsi steps are I/O-bound on
-the collapsed sequence files, where startup overhead is still a significant
-fraction of total time.
+The v2.1 sort improvement (~9% over 2.0) comes from `needletail`'s faster
+FASTQ parsing and `ahash` replacing `SipHash` for DNA-string key lookups.
+Filter and RSI are I/O-bound on small collapsed-sequence files at this scale,
+so the hasher change has negligible effect there.  The gzip overhead (~15%)
+is decompression cost — the same binary handles both plain and `.fastq.gz`
+input with no flags.
 
 ## Quick start
 
