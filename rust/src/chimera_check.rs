@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Args;
-use ahash::HashMap;
+use indexmap::IndexMap;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use std::process::Command;
@@ -250,10 +250,7 @@ type NoChimEntry = (Vec<String>, Vec<String>, Vec<String>, Vec<String>, Vec<Stri
 #[allow(unused_assignments)]
 pub fn make_no_chim_haps(p: usize) -> Result<()> {
     // HAP: key = "tag1_tag2_pool" → (primers, tag1s, tag2s, freqs, seqs)
-    let mut hap: HashMap<String, NoChimEntry> = HashMap::default();
-
-    // Preserve insertion order for deterministic output
-    let mut hap_order: Vec<String> = Vec::new();
+    let mut hap: IndexMap<String, NoChimEntry> = IndexMap::new();
 
     for pool in 1..=p {
         let input_path = format!("Pool{}.noChim.oneLiner.fasta", pool);
@@ -287,7 +284,6 @@ pub fn make_no_chim_haps(p: usize) -> Result<()> {
                 tag_hap_key = format!("{}_{}_{}", tag_name1, tag_name2, pool);
 
                 let entry = hap.entry(tag_hap_key.clone()).or_insert_with(|| {
-                    hap_order.push(tag_hap_key.clone());
                     (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new())
                 });
                 entry.0.push(primer_name.clone());
@@ -302,8 +298,7 @@ pub fn make_no_chim_haps(p: usize) -> Result<()> {
         }
     }
 
-    for key in &hap_order {
-        let entry = &hap[key];
+    for (key, entry) in &hap {
         let out_path = format!("{}.noChim.txt", key);
         let mut out = File::create(&out_path).with_context(|| format!("creating {}", out_path))?;
         for i in 0..entry.0.len() {
