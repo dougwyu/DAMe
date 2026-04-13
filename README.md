@@ -215,12 +215,35 @@ bash tests/integration/run_pipeline.sh
 ## Repository layout
 
 ```
-python/      Python 3 source (dame-py entry point)
-rust/        Rust source (dame binary)
-tests/       Developer and CI tests
-tutorial/    Tutorial dataset and walkthrough
-docs/        Design specs and implementation plans
-DAMe_1.0/    Original DAMe v1.0 (Python 2 scripts, example data, manual)
+python/                          Python 3 implementation (dame-py entry point)
+  dame/
+    __main__.py                  CLI entry point and subcommand dispatch
+    sort.py / modules_sort.py    Demultiplex reads by tag+primer (sort subcommand)
+    filter.py / modules_filter.py  Filter amplicons across PCR replicates
+    chimera_check.py / modules_chimera_check.py  Chimera detection via usearch
+    rsi.py                       Renkonen Similarity Index
+    decollapse.py                Expand collapsed sequences back to reads
+  tests/                         pytest unit test suite
+
+rust/                            Rust implementation (dame binary)
+  src/
+    main.rs                      CLI entry point (clap dispatch)
+    lib.rs                       Module declarations
+    sort.rs                      Demultiplex reads by tag+primer
+    filter.rs                    Filter amplicons across PCR replicates
+    chimera_check.rs             Chimera detection via usearch
+    rsi.rs                       Renkonen Similarity Index
+    decollapse.rs                Expand collapsed sequences back to reads
+  tests/                         Rust integration tests (one file per subcommand)
+  Cargo.toml                     Crate manifest and dependencies
+
+tests/
+  fixtures/                      Shared test input files (FASTQ, primers, tags)
+  integration/                   Shell scripts comparing dame vs dame-py output
+
+tutorial/                        Synthetic dataset and step-by-step walkthrough
+docs/                            Design specs and implementation plans
+DAMe_1.0/                        Original DAMe v1.0 (Python 2 scripts, example data, manual)
 ```
 
 ## Citation
