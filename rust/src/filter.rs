@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Args;
-use std::collections::{HashMap, HashSet};
+use ahash::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 
@@ -63,7 +63,7 @@ pub fn make_ps_num_files(ps_info: &str, x: usize, _p: usize, chimera_checked: bo
 
 /// Reads PS{n}_files.txt files and returns a map of 0-indexed PCR replicate index -> list of file paths.
 pub fn read_ps_num_files(x: usize) -> Result<HashMap<usize, Vec<String>>> {
-    let mut ps_ins_lines: HashMap<usize, Vec<String>> = HashMap::new();
+    let mut ps_ins_lines: HashMap<usize, Vec<String>> = HashMap::default();
     for i in 0..x {
         let filename = format!("PS{}_files.txt", i + 1);
         let reader = BufReader::new(
@@ -104,7 +104,7 @@ pub fn read_haps_for_a_sample(
     ps_ins_lines: &HashMap<usize, Vec<String>>,
     i: usize,
 ) -> Result<HashMap<usize, Vec<Vec<String>>>> {
-    let mut haps: HashMap<usize, Vec<Vec<String>>> = HashMap::new();
+    let mut haps: HashMap<usize, Vec<Vec<String>>> = HashMap::default();
     for j in 0..x {
         let entry = haps.entry(j).or_default();
         if let Some(lines) = ps_ins_lines.get(&j) {
@@ -152,11 +152,11 @@ pub fn get_seqs_sets_and_fr_counts(
     x: usize,
     haps: &HashMap<usize, Vec<Vec<String>>>,
 ) -> SeqsSetsAndFRCounts {
-    let mut f: HashMap<usize, String> = HashMap::new();
-    let mut r: HashMap<usize, String> = HashMap::new();
-    let mut counts: HashMap<usize, Vec<String>> = HashMap::new();
-    let mut seqs: HashMap<usize, Vec<String>> = HashMap::new();
-    let mut seqs_all: HashSet<String> = HashSet::new();
+    let mut f: HashMap<usize, String> = HashMap::default();
+    let mut r: HashMap<usize, String> = HashMap::default();
+    let mut counts: HashMap<usize, Vec<String>> = HashMap::default();
+    let mut seqs: HashMap<usize, Vec<String>> = HashMap::default();
+    let mut seqs_all: HashSet<String> = HashSet::default();
 
     for j in 0..x {
         if let Some(hap_j) = haps.get(&j) {

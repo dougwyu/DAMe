@@ -1,5 +1,5 @@
+use ahash::HashMap;
 use dame::sort::{fill_hap, get_pieces_info, rc, read_primers, read_tags, run, Hap, SortArgs};
-use std::collections::HashMap;
 use std::io::Write;
 use tempfile::tempdir;
 

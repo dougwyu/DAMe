@@ -12,6 +12,7 @@ name = "dame"
 path = "src/lib.rs"
 
 [dependencies]
+ahash = "0.8"
 clap = { version = "4", features = ["derive"] }
 regex = "1"
 ndarray = "0.15"

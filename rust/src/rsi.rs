@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Args;
 use ndarray::{Array2, Axis};
-use std::collections::HashMap;
+use ahash::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 
@@ -79,7 +79,7 @@ pub fn run(args: RsiArgs) -> Result<()> {
     }
 
     // Group rows by sample name
-    let mut sample_map: HashMap<String, Vec<Vec<String>>> = HashMap::new();
+    let mut sample_map: HashMap<String, Vec<Vec<String>>> = HashMap::default();
     for row in &data {
         sample_map
             .entry(row[0].clone())

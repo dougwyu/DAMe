@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Args;
-use std::collections::HashMap;
+use ahash::HashMap;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use std::process::Command;
@@ -250,7 +250,7 @@ type NoChimEntry = (Vec<String>, Vec<String>, Vec<String>, Vec<String>, Vec<Stri
 #[allow(unused_assignments)]
 pub fn make_no_chim_haps(p: usize) -> Result<()> {
     // HAP: key = "tag1_tag2_pool" → (primers, tag1s, tag2s, freqs, seqs)
-    let mut hap: HashMap<String, NoChimEntry> = HashMap::new();
+    let mut hap: HashMap<String, NoChimEntry> = HashMap::default();
 
     // Preserve insertion order for deterministic output
     let mut hap_order: Vec<String> = Vec::new();

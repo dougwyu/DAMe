@@ -1,7 +1,7 @@
+use ahash::HashMap;
 use dame::filter::{
     get_seqs_sets_and_fr_counts, make_ps_num_files, make_sample_name_array, read_ps_num_files,
 };
-use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Mutex;
 use tempfile::tempdir;
@@ -110,7 +110,7 @@ fn test_read_ps_num_files_returns_lines() {
 #[test]
 fn test_get_seqs_sets_and_fr_counts_empty() {
     let haps: HashMap<usize, Vec<Vec<String>>> = {
-        let mut m = HashMap::new();
+        let mut m = HashMap::default();
         m.insert(0, vec![]);
         m.insert(1, vec![]);
         m
@@ -128,7 +128,7 @@ fn test_get_seqs_sets_and_fr_counts_empty() {
 #[test]
 fn test_get_seqs_sets_and_fr_counts_with_data() {
     let haps: HashMap<usize, Vec<Vec<String>>> = {
-        let mut m = HashMap::new();
+        let mut m = HashMap::default();
         m.insert(
             0,
             vec![

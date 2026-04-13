@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::Args;
 use indexmap::IndexMap;
 use regex::Regex;
-use std::collections::HashMap;
+use ahash::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 
@@ -99,7 +99,7 @@ pub struct PieceInfo {
 pub fn read_tags(path: &str) -> Result<HashMap<String, Vec<String>>> {
     let file = File::open(path).with_context(|| format!("Cannot open tags file: {path}"))?;
     let reader = BufReader::new(file);
-    let mut tags: HashMap<String, Vec<String>> = HashMap::new();
+    let mut tags: HashMap<String, Vec<String>> = HashMap::default();
 
     for line in reader.lines() {
         let line = line?;
