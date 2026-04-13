@@ -43,6 +43,45 @@ pub fn rc(seq: &str) -> String {
         .collect()
 }
 
+/// Returns true if `primer_byte` (an IUPAC code) is compatible with `read_byte` (A/C/G/T).
+/// Both bytes are expected to be uppercase ASCII.
+pub fn iupac_matches(primer_byte: u8, read_byte: u8) -> bool {
+    match primer_byte {
+        b'A' => read_byte == b'A',
+        b'C' => read_byte == b'C',
+        b'G' => read_byte == b'G',
+        b'T' => read_byte == b'T',
+        b'R' => matches!(read_byte, b'A' | b'G'),
+        b'Y' => matches!(read_byte, b'C' | b'T'),
+        b'S' => matches!(read_byte, b'C' | b'G'),
+        b'W' => matches!(read_byte, b'A' | b'T'),
+        b'K' => matches!(read_byte, b'G' | b'T'),
+        b'M' => matches!(read_byte, b'A' | b'C'),
+        b'B' => matches!(read_byte, b'C' | b'G' | b'T'),
+        b'D' => matches!(read_byte, b'A' | b'G' | b'T'),
+        b'H' => matches!(read_byte, b'A' | b'C' | b'T'),
+        b'V' => matches!(read_byte, b'A' | b'C' | b'G'),
+        b'N' => matches!(read_byte, b'A' | b'C' | b'G' | b'T'),
+        _ => false,
+    }
+}
+
+/// Find the leftmost occurrence of `primer` in `seq` using IUPAC matching.
+/// Returns `Some((start, end))` where `end = start + primer.len()`, or `None` if not found.
+pub fn find_primer(primer: &[u8], seq: &[u8]) -> Option<(usize, usize)> {
+    let plen = primer.len();
+    let slen = seq.len();
+    if plen > slen {
+        return None;
+    }
+    for i in 0..=(slen - plen) {
+        if primer.iter().zip(&seq[i..]).all(|(&p, &s)| iupac_matches(p, s)) {
+            return Some((i, i + plen));
+        }
+    }
+    None
+}
+
 /// Expand an ambiguous nucleotide character to its regex pattern string.
 fn ambig_expand(seq: &str) -> String {
     seq.chars()

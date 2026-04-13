@@ -27,6 +27,132 @@ fn test_rc_ambiguous_n() {
     assert_eq!(rc("N"), "N");
 }
 
+// ── iupac_matches ─────────────────────────────────────────────────────────────
+
+#[test]
+fn test_iupac_matches_exact() {
+    use dame::sort::iupac_matches;
+    assert!(iupac_matches(b'A', b'A'));
+    assert!(iupac_matches(b'C', b'C'));
+    assert!(iupac_matches(b'G', b'G'));
+    assert!(iupac_matches(b'T', b'T'));
+    assert!(!iupac_matches(b'A', b'C'));
+    assert!(!iupac_matches(b'G', b'T'));
+}
+
+#[test]
+fn test_iupac_matches_ambiguous() {
+    use dame::sort::iupac_matches;
+    // R = A or G
+    assert!(iupac_matches(b'R', b'A'));
+    assert!(iupac_matches(b'R', b'G'));
+    assert!(!iupac_matches(b'R', b'C'));
+    assert!(!iupac_matches(b'R', b'T'));
+    // Y = C or T
+    assert!(iupac_matches(b'Y', b'C'));
+    assert!(iupac_matches(b'Y', b'T'));
+    assert!(!iupac_matches(b'Y', b'A'));
+    // N = anything
+    assert!(iupac_matches(b'N', b'A'));
+    assert!(iupac_matches(b'N', b'C'));
+    assert!(iupac_matches(b'N', b'G'));
+    assert!(iupac_matches(b'N', b'T'));
+    // S = C or G
+    assert!(iupac_matches(b'S', b'C'));
+    assert!(iupac_matches(b'S', b'G'));
+    assert!(!iupac_matches(b'S', b'A'));
+    // W = A or T
+    assert!(iupac_matches(b'W', b'A'));
+    assert!(iupac_matches(b'W', b'T'));
+    assert!(!iupac_matches(b'W', b'G'));
+    // K = G or T
+    assert!(iupac_matches(b'K', b'G'));
+    assert!(iupac_matches(b'K', b'T'));
+    assert!(!iupac_matches(b'K', b'A'));
+    // M = A or C
+    assert!(iupac_matches(b'M', b'A'));
+    assert!(iupac_matches(b'M', b'C'));
+    assert!(!iupac_matches(b'M', b'T'));
+    // B = C, G, T
+    assert!(iupac_matches(b'B', b'C'));
+    assert!(iupac_matches(b'B', b'G'));
+    assert!(iupac_matches(b'B', b'T'));
+    assert!(!iupac_matches(b'B', b'A'));
+    // D = A, G, T
+    assert!(iupac_matches(b'D', b'A'));
+    assert!(iupac_matches(b'D', b'G'));
+    assert!(iupac_matches(b'D', b'T'));
+    assert!(!iupac_matches(b'D', b'C'));
+    // H = A, C, T
+    assert!(iupac_matches(b'H', b'A'));
+    assert!(iupac_matches(b'H', b'C'));
+    assert!(iupac_matches(b'H', b'T'));
+    assert!(!iupac_matches(b'H', b'G'));
+    // V = A, C, G
+    assert!(iupac_matches(b'V', b'A'));
+    assert!(iupac_matches(b'V', b'C'));
+    assert!(iupac_matches(b'V', b'G'));
+    assert!(!iupac_matches(b'V', b'T'));
+}
+
+// ── find_primer ───────────────────────────────────────────────────────────────
+
+#[test]
+fn test_find_primer_exact() {
+    use dame::sort::find_primer;
+    // primer ACGT in XXXXACGTXXXX — should find at position 4
+    let seq = b"XXXXACGTXXXX";
+    let primer = b"ACGT";
+    let result = find_primer(primer, seq);
+    assert_eq!(result, Some((4, 8)));
+}
+
+#[test]
+fn test_find_primer_iupac() {
+    use dame::sort::find_primer;
+    // primer with R (= A or G): GCRTGC matches GCATGC
+    let seq = b"TTTTGCATGCTTTT";
+    let primer = b"GCRTGC";
+    let result = find_primer(primer, seq);
+    assert_eq!(result, Some((4, 10)));
+}
+
+#[test]
+fn test_find_primer_iupac_second_option() {
+    use dame::sort::find_primer;
+    // primer GCRTGC also matches GCGTGC (R = G)
+    let seq = b"TTTTGCGTGCTTTT";
+    let primer = b"GCRTGC";
+    let result = find_primer(primer, seq);
+    assert_eq!(result, Some((4, 10)));
+}
+
+#[test]
+fn test_find_primer_not_found() {
+    use dame::sort::find_primer;
+    let seq = b"AAAAAAAAAA";
+    let primer = b"GCATGC";
+    assert_eq!(find_primer(primer, seq), None);
+}
+
+#[test]
+fn test_find_primer_leftmost() {
+    use dame::sort::find_primer;
+    // primer appears twice — must return leftmost
+    let seq = b"ACGTXXXXACGT";
+    let primer = b"ACGT";
+    let result = find_primer(primer, seq);
+    assert_eq!(result, Some((0, 4)));
+}
+
+#[test]
+fn test_find_primer_primer_longer_than_seq() {
+    use dame::sort::find_primer;
+    let seq = b"AC";
+    let primer = b"ACGT";
+    assert_eq!(find_primer(primer, seq), None);
+}
+
 // ── read_tags ─────────────────────────────────────────────────────────────────
 
 #[test]
