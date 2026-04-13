@@ -1,4 +1,4 @@
-# DAMe v2.0: DNA Metabarcoding toolkit
+# DAMe v2.1: DNA Metabarcoding toolkit
 
 DAMe demultiplexes pooled metabarcoding / eDNA FASTQ reads by primer and
 tag sequences (**sort**), optionally removes chimeric sequences (**chimera**),
@@ -104,7 +104,7 @@ sample and pool.
 
 ## Development history
 
-DAMe was originally written in Python 2 by Zepeda Mendoza et al. (2016).
+DAMe was originally written in Python 2 by Zepeda-Mendoza et al. (2016).
 [Claude Code](https://claude.ai/code) was used to modernise and extend the
 codebase:
 
@@ -148,6 +148,17 @@ codebase:
 6. **GitHub Actions CI.**  A matrix workflow (`.github/workflows/ci.yml`) runs
    pytest on Python 3.11 and 3.12, `cargo test` on Rust stable, and all six
    integration scripts on every push and pull request to `master`.
+
+7. **DAMe v2.1 — Rust performance improvements.**  Two targeted optimisations
+   were added to the Rust binary: (a) the manual four-line FASTQ reading loop
+   in `sort` was replaced with
+   [needletail 0.5](https://github.com/onecodex/needletail), which also adds
+   transparent gzip input support; (b) all `HashMap` and `HashSet` instances
+   across every module now use the
+   [ahash 0.8](https://github.com/tkaitchuck/aHash) non-cryptographic hasher,
+   which is substantially faster for DNA string keys.  A pre-existing fragile
+   `HashMap` + manual order-tracking `Vec` pattern in `chimera_check` was also
+   replaced with `IndexMap`, consistent with the convention in `sort`.
 
 ## Documentation
 
@@ -211,7 +222,7 @@ DAMe_1.0/    Original DAMe v1.0 (Python 2 scripts, example data, manual)
 
 ## Citation
 
-Zepeda Mendoza, M.L., Sicheritz-Pontén, T. and Gilbert, M.T.P. (2016).
-Environmental genes and genomes: understanding the differences and challenges in
-the approaches and software for their analyses. *Briefings in Bioinformatics*,
-17(4), 745–754.
+Zepeda-Mendoza, M.L., Bohmann, K., Carmona Baez, A. and Gilbert, M.T.P. (2016).
+DAMe: A toolkit for the initial processing of datasets with PCR replicates of
+double-tagged amplicons for DNA metabarcoding analyses. *BMC Research Notes*,
+9(1), 255. https://doi.org/10.1186/s13104-016-2064-9
