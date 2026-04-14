@@ -27,6 +27,30 @@ fn test_rc_ambiguous_n() {
     assert_eq!(rc("N"), "N");
 }
 
+#[test]
+fn test_rc_bytes_palindrome() {
+    use dame::sort::rc_bytes;
+    assert_eq!(rc_bytes(b"ACGT"), b"ACGT");
+}
+
+#[test]
+fn test_rc_bytes_all_a() {
+    use dame::sort::rc_bytes;
+    assert_eq!(rc_bytes(b"AAAA"), b"TTTT");
+}
+
+#[test]
+fn test_rc_bytes_iupac_full_table() {
+    use dame::sort::rc_bytes;
+    // Every IUPAC code reversed and complemented
+    // Input:  ACGTMRWSYKVHDB
+    // Reverse: BDHVKYSWRMTGCA
+    // Complement: VHDBMRSWYKACGT
+    assert_eq!(rc_bytes(b"ACGTMRWSYKVHDB"), b"VHDBMRSWYKACGT");
+    // N stays N
+    assert_eq!(rc_bytes(b"NNN"), b"NNN");
+}
+
 // ── iupac_matches ─────────────────────────────────────────────────────────────
 
 #[test]

@@ -42,6 +42,32 @@ pub fn rc(seq: &str) -> String {
         .collect()
 }
 
+/// Byte-level reverse complement for DNA sequences.
+/// Equivalent to `rc()` but operates on `&[u8]` directly — no UTF-8 decode, single pass.
+/// Input bytes should be uppercase ASCII (standard FASTQ).
+pub fn rc_bytes(seq: &[u8]) -> Vec<u8> {
+    seq.iter()
+        .rev()
+        .map(|&b| match b {
+            b'A' => b'T',
+            b'T' => b'A',
+            b'C' => b'G',
+            b'G' => b'C',
+            b'M' => b'K',
+            b'K' => b'M',
+            b'R' => b'Y',
+            b'Y' => b'R',
+            b'W' => b'W',
+            b'S' => b'S',
+            b'V' => b'B',
+            b'B' => b'V',
+            b'H' => b'D',
+            b'D' => b'H',
+            _ => b,
+        })
+        .collect()
+}
+
 /// Returns true if `primer_byte` (an IUPAC code) is compatible with `read_byte` (A/C/G/T).
 /// Both bytes are expected to be uppercase ASCII.
 pub fn iupac_matches(primer_byte: u8, read_byte: u8) -> bool {
@@ -254,7 +280,10 @@ pub fn get_pieces_info(
                     if between_raw.is_empty() {
                         return None;
                     }
-                    let between = rc(between_raw);
+                    // rc_bytes is byte-level and single-pass; between_raw is ASCII DNA
+                    let between_bytes = rc_bytes(between_raw.as_bytes());
+                    let between = String::from_utf8(between_bytes)
+                        .expect("rc_bytes output is valid ASCII by construction");
                     let tag1_str = &line[..prim_ini_tags];
                     let tag2_str = &line[prim_fin_tags..];
                     // In reverse orientation: tag roles are swapped
