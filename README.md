@@ -1,4 +1,4 @@
-# DAMe v2.2: DNA Metabarcoding toolkit
+# DAMe v2.3: DNA Metabarcoding toolkit
 
 DAMe demultiplexes pooled metabarcoding / eDNA FASTQ reads by primer and
 tag sequences (**sort**), optionally removes chimeric sequences (**chimera**),
@@ -30,16 +30,19 @@ Small dataset — tutorial (392 reads, 1 pool):
 
 Large dataset — synthetic benchmark (196,000 reads, 2 pools of ~100k reads each):
 
-| Step | Python 3 | Rust 2.0 | Rust 2.1 | Rust 2.2 | 2.2 vs Python |
-|------|----------|----------|----------|----------|---------------|
-| sort (plain FASTQ) | ~500 ms/pool | ~97 ms/pool | ~89 ms/pool | ~59 ms/pool | ~4.4× (†) |
-| sort (gzip FASTQ)  | — | not supported | ~102 ms/pool | ~59 ms/pool | new in 2.1 |
-| filter | ~149 ms | ~39 ms | ~38 ms | ~38 ms | ~4× |
-| rsi | ~150 ms | ~33 ms | ~34 ms | ~34 ms | ~4.4× |
+| Step | Python 3 | Rust 2.0 | Rust 2.1 | Rust 2.2 | Rust 2.3 | 2.3 vs Python |
+|------|----------|----------|----------|----------|----------|---------------|
+| sort (plain FASTQ) | ~500 ms/pool | ~97 ms/pool | ~89 ms/pool | ~111 ms/pool (†) | ~105 ms/pool | ~4.8× |
+| sort (gzip FASTQ)  | — | not supported | ~102 ms/pool | ~111 ms/pool | ~105 ms/pool | new in 2.1 |
+| filter | ~149 ms | ~39 ms | ~38 ms | ~38 ms | ~38 ms | ~4× |
+| rsi | ~150 ms | ~33 ms | ~34 ms | ~34 ms | ~34 ms | ~4.4× |
 
-(†) The 2.2 vs Python speedup is measured against a fresh Python run on the
-same dataset (~262 ms/pool vs the ~500 ms/pool recorded during the v2.1
-benchmark); different machine load accounts for the discrepancy.
+(†) The v2.2 sort figure was remeasured under the current toolchain
+(rustc 1.94) and machine-load conditions for an apples-to-apples comparison
+with v2.3.  The previous v2.2 figure of ~59 ms/pool was recorded on a
+different toolchain/machine state; the absolute numbers are not directly
+comparable across measurement sessions, but the relative v2.3-vs-v2.2 gap
+reported here is a true interleaved benchmark.
 
 The v2.1 sort improvement (~9% over 2.0) comes from `needletail`'s faster
 FASTQ parsing and `ahash` replacing `SipHash` for DNA-string key lookups.
@@ -55,6 +58,19 @@ removed the `regex` crate dependency entirely.  On the CO1 tutorial primers
 competitive with naive byte-by-byte scanning, so the sort time is similar to
 v2.1.  The benefit of v2.2 is correctness assurance on highly ambiguous
 primers (e.g. many N or degenerate positions) and a simpler dependency tree.
+
+The v2.3 sort changes target three per-read constant-factor costs in the hot
+loop: (a) a byte-level `rc_bytes(&[u8]) -> Vec<u8>` replaces the char-based
+`rc(&str) -> String` in the reverse-orientation branch of `get_pieces_info`,
+eliminating UTF-8 decode on every reverse-orientation read; (b) `read_tags`
+now pre-builds two `HashMap<Vec<u8>, String>` reverse-lookup maps (forward
+and RC) at startup, replacing the per-read `O(N_tags)` linear scan in
+`get_pieces_info` with `O(1)` hash lookups; (c) `fill_hap` no longer calls
+`between.to_string()` on reads that land on an already-seen barcode — the
+common case at typical amplicon duplication rates.  On the CO1 tutorial
+primers with 8 tags, the measured sort speedup is ~5% (the small N_tags
+limits the benefit of the O(1) lookup, and the synthetic dataset is
+parsing-bound).  Larger tag panels should benefit more.
 
 ## Quick start
 
@@ -186,6 +202,20 @@ codebase:
    to v2.1 (the `regex` DFA is competitive with naive byte scanning on
    exact-match patterns); the main benefit is a simpler dependency tree and
    guaranteed correctness on highly degenerate primer sequences.
+
+9. **DAMe v2.3 — Sort hot-loop constant-factor reductions.**  Three targeted
+   changes to per-read work in `sort`: (a) a new `rc_bytes(&[u8]) -> Vec<u8>`
+   replaces the char-based `rc(&str) -> String` on the reverse-orientation
+   branch of `get_pieces_info`, eliminating UTF-8 decoding of every
+   reverse-orientation read; (b) `read_tags` now returns a `TagLookup` struct
+   holding two pre-built `HashMap<Vec<u8>, String>` reverse-lookup maps
+   (forward and RC), replacing the `O(N_tags)` `tags.iter().find(...)` linear
+   scan in `get_pieces_info` with `O(1)` hash lookup on the raw byte slice;
+   (c) `fill_hap` no longer calls `between.to_string()` on reads that hit an
+   already-seen barcode — the common case at typical amplicon duplication
+   rates.  All integration tests continue to produce byte-identical output to
+   `dame-py`.  On CO1 tutorial primers with 8 tags, the measured sort speedup
+   is ~5%; larger tag panels should benefit more from the O(1) lookup.
 
 ## Documentation
 
