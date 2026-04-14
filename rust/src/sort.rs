@@ -205,17 +205,28 @@ pub fn read_primers(path: &str) -> Result<IndexMap<String, PrimerEntry>> {
 
 /// Fill the HAP map with a tag combination and barcode sequence.
 pub fn fill_hap(hap: &mut Hap, tag1: &str, tag2: &str, primer_name: &str, between: &str) {
+    // We still allocate the composite key (IndexMap has no get_or_insert_with_key
+    // for &str to String on miss without extra crates), but we avoid the second
+    // allocation of `between` by using the raw `entry` API with `between.to_string()`
+    // only when the key is genuinely new.
     let key = format!("{}_{}", tag1, tag2);
     let entry = hap.entry(key).or_insert_with(|| HapEntry {
         tag1: tag1.to_string(),
         tag2: tag2.to_string(),
         seqs: IndexMap::new(),
     });
-    let seq_entry = entry.seqs.entry(between.to_string()).or_insert_with(|| SeqEntry {
-        count: 0,
-        primer_name: primer_name.to_string(),
-    });
-    seq_entry.count += 1;
+
+    if let Some(seq_entry) = entry.seqs.get_mut(between) {
+        seq_entry.count += 1;
+    } else {
+        entry.seqs.insert(
+            between.to_string(),
+            SeqEntry {
+                count: 1,
+                primer_name: primer_name.to_string(),
+            },
+        );
+    }
 }
 
 /// Try to extract tag info from a sequence line.
