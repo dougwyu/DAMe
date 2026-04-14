@@ -1,4 +1,3 @@
-use ahash::HashMap;
 use dame::sort::{fill_hap, get_pieces_info, rc, read_primers, read_tags, run, Hap, SortArgs};
 use std::io::Write;
 use tempfile::tempdir;
@@ -196,13 +195,12 @@ fn test_read_tags() {
     writeln!(f, "ACGT\tTag1\nTTTT\tTag2").unwrap();
 
     let tags = read_tags(path.to_str().unwrap()).unwrap();
-    assert!(tags.contains_key("Tag1"));
-    assert_eq!(tags["Tag1"][0], "ACGT");
-    // rc("ACGT") == "ACGT" (palindrome)
-    assert_eq!(tags["Tag1"][1], rc("ACGT"));
-    assert!(tags.contains_key("Tag2"));
-    assert_eq!(tags["Tag2"][0], "TTTT");
-    assert_eq!(tags["Tag2"][1], "AAAA");
+    // Forward lookup: tag bytes → tag name
+    assert_eq!(tags.by_fwd.get(b"ACGT".as_ref()).map(|s| s.as_str()), Some("Tag1"));
+    assert_eq!(tags.by_fwd.get(b"TTTT".as_ref()).map(|s| s.as_str()), Some("Tag2"));
+    // RC lookup: rc(ACGT)=ACGT (palindrome), rc(TTTT)=AAAA
+    assert_eq!(tags.by_rc.get(b"ACGT".as_ref()).map(|s| s.as_str()), Some("Tag1"));
+    assert_eq!(tags.by_rc.get(b"AAAA".as_ref()).map(|s| s.as_str()), Some("Tag2"));
 }
 
 // ── read_primers ──────────────────────────────────────────────────────────────
@@ -264,14 +262,12 @@ fn test_fill_hap_multiple_seqs() {
 /// Build a minimal tags + primers map for testing.
 /// Tags: AAAA=Tag1, CCCC=Tag2, GGGG=Tag3, TTTT=Tag4
 /// Primer CO1: F=ACGT, R=TGCA
-fn make_test_tags() -> HashMap<String, Vec<String>> {
+fn make_test_tags() -> dame::sort::TagLookup {
     let dir = tempdir().unwrap();
     let path = dir.path().join("tags.txt");
     let mut f = std::fs::File::create(&path).unwrap();
     writeln!(f, "AAAA\tTag1\nCCCC\tTag2\nGGGG\tTag3\nTTTT\tTag4").unwrap();
-    // dir must stay alive until after read_tags; we shadow it
-    let tags = read_tags(path.to_str().unwrap()).unwrap();
-    tags
+    read_tags(path.to_str().unwrap()).unwrap()
 }
 
 fn make_test_primers() -> indexmap::IndexMap<String, dame::sort::PrimerEntry> {

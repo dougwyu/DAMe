@@ -134,12 +134,19 @@ pub struct PieceInfo {
     pub between: String,
 }
 
-/// Read a Tags file (TagSeq\tTagName per line).
-/// Returns HashMap<TagName, [forward_seq, RC(forward_seq)]>
-pub fn read_tags(path: &str) -> Result<HashMap<String, Vec<String>>> {
+/// Pre-built O(1) reverse lookup for tag sequences.
+/// `by_fwd` maps forward tag bytes → tag name; `by_rc` maps RC tag bytes → tag name.
+pub struct TagLookup {
+    pub by_fwd: HashMap<Vec<u8>, String>,
+    pub by_rc: HashMap<Vec<u8>, String>,
+}
+
+/// Read a Tags file (TagSeq\tTagName per line) and build O(1) reverse lookup maps.
+pub fn read_tags(path: &str) -> Result<TagLookup> {
     let file = File::open(path).with_context(|| format!("Cannot open tags file: {path}"))?;
     let reader = BufReader::new(file);
-    let mut tags: HashMap<String, Vec<String>> = HashMap::default();
+    let mut by_fwd: HashMap<Vec<u8>, String> = HashMap::default();
+    let mut by_rc: HashMap<Vec<u8>, String> = HashMap::default();
 
     for line in reader.lines() {
         let line = line?;
@@ -153,12 +160,11 @@ pub fn read_tags(path: &str) -> Result<HashMap<String, Vec<String>>> {
         }
         let seq = parts[0];
         let name = parts[1];
-        let entry = tags.entry(name.to_string()).or_default();
-        entry.push(seq.to_string());
-        entry.push(rc(seq));
+        by_fwd.insert(seq.as_bytes().to_vec(), name.to_string());
+        by_rc.insert(rc(seq).as_bytes().to_vec(), name.to_string());
     }
 
-    Ok(tags)
+    Ok(TagLookup { by_fwd, by_rc })
 }
 
 /// Read a Primers file (Name\tFwdSeq\tRevSeq per line).
@@ -217,7 +223,7 @@ pub fn fill_hap(hap: &mut Hap, tag1: &str, tag2: &str, primer_name: &str, betwee
 pub fn get_pieces_info(
     line: &str,
     primers: &IndexMap<String, PrimerEntry>,
-    tags: &HashMap<String, Vec<String>>,
+    tags: &TagLookup,
     keep_primers_seq: bool,
 ) -> Option<PieceInfo> {
     let seq = line.as_bytes();
@@ -245,8 +251,8 @@ pub fn get_pieces_info(
                 }
                 let tag1_str = &line[..prim_ini_tags];
                 let tag2_str = &line[prim_fin_tags..];
-                let tag_name1 = tags.iter().find(|(_, v)| v[0] == tag1_str).map(|(k, _)| k.clone());
-                let tag_name2 = tags.iter().find(|(_, v)| v[1] == tag2_str).map(|(k, _)| k.clone());
+                let tag_name1 = tags.by_fwd.get(tag1_str.as_bytes()).cloned();
+                let tag_name2 = tags.by_rc.get(tag2_str.as_bytes()).cloned();
                 if let (Some(tn1), Some(tn2)) = (tag_name1, tag_name2) {
                     return Some(PieceInfo {
                         tag1: tn1,
@@ -287,8 +293,8 @@ pub fn get_pieces_info(
                     let tag1_str = &line[..prim_ini_tags];
                     let tag2_str = &line[prim_fin_tags..];
                     // In reverse orientation: tag roles are swapped
-                    let tag_name2 = tags.iter().find(|(_, v)| v[0] == tag1_str).map(|(k, _)| k.clone());
-                    let tag_name1 = tags.iter().find(|(_, v)| v[1] == tag2_str).map(|(k, _)| k.clone());
+                    let tag_name2 = tags.by_fwd.get(tag1_str.as_bytes()).cloned();
+                    let tag_name1 = tags.by_rc.get(tag2_str.as_bytes()).cloned();
                     if let (Some(tn1), Some(tn2)) = (tag_name1, tag_name2) {
                         return Some(PieceInfo {
                             tag1: tn1,
