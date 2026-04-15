@@ -95,7 +95,7 @@ dame-py rsi Comparisons_2PCRs.txt
 
 ```bash
 cd rust && cargo build --release
-# binary: rust/target/release/dame
+# binary is here: DAMe/rust/target/release/dame
 
 dame sort \
   --fq Pool1.fastq \
