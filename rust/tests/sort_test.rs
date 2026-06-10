@@ -319,9 +319,24 @@ fn test_get_pieces_info_forward_read() {
     let tags = make_test_tags();
     let primers = make_test_primers();
     let line = "AAAAACGTATATATTGCAGGGG";
-    let info = get_pieces_info(line, &primers, &tags, false);
+    let info = get_pieces_info(line, &primers, &tags, false, 0);
     assert!(info.is_some(), "Expected Some(PieceInfo) for a valid forward read");
     let info = info.unwrap();
+    assert_eq!(info.tag1, "Tag1");
+    assert_eq!(info.tag2, "Tag2");
+    assert_eq!(info.between, "ATATAT");
+    assert_eq!(info.primer_name, "CO1");
+}
+
+#[test]
+fn test_get_pieces_info_forward_read_with_one_mismatch() {
+    // Same as the forward-read test, but the forward primer ACGT is miscalled
+    // as ACGA. At N=0 the read is rejected; at N=1 it sorts to Tag1_Tag2.
+    let tags = make_test_tags();
+    let primers = make_test_primers();
+    let line = "AAAAACGAATATATTGCAGGGG"; // primer region ACGA (was ACGT)
+    assert!(get_pieces_info(line, &primers, &tags, false, 0).is_none());
+    let info = get_pieces_info(line, &primers, &tags, false, 1).unwrap();
     assert_eq!(info.tag1, "Tag1");
     assert_eq!(info.tag2, "Tag2");
     assert_eq!(info.between, "ATATAT");
@@ -333,7 +348,7 @@ fn test_get_pieces_info_error_read() {
     let tags = make_test_tags();
     let primers = make_test_primers();
     let line = "NNNNNNNNNNNNNNNNNNNN";
-    let info = get_pieces_info(line, &primers, &tags, false);
+    let info = get_pieces_info(line, &primers, &tags, false, 0);
     assert!(info.is_none(), "Expected None for an error/ambiguous read");
 }
 
@@ -360,6 +375,7 @@ fn test_run_sort_produces_output_files() {
         primers: primers.to_str().unwrap().to_string(),
         tags: tags.to_str().unwrap().to_string(),
         keep_primers_seq: false,
+        primer_mismatches: 0,
     });
 
     // Restore cwd regardless of outcome
@@ -425,7 +441,7 @@ fn test_get_pieces_info_no_panic_on_inverted_primers() {
     // In forward branch: finds ACGT at pos 8, then RC(R)=TGCA would match at pos 4 (before start)
     // → prim_ini_prim=12 > prim_fin_prim=4 → guard triggers → returns None, no panic
     let bad_read = "AAAATGCAACGTCCCC"; // TGCA at [4,8), ACGT at [8,12) — end primer before start
-    let result = get_pieces_info(bad_read, &primers, &tags, false);
+    let result = get_pieces_info(bad_read, &primers, &tags, false, 0);
     // Guard should return None, not panic
     assert!(result.is_none());
 }

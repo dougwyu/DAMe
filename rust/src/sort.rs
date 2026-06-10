@@ -15,6 +15,8 @@ pub struct SortArgs {
     pub tags: String,
     #[arg(long = "keep-primers-seq")]
     pub keep_primers_seq: bool,
+    #[arg(short = 'm', long = "primer-mismatches", default_value = "0")]
+    pub primer_mismatches: usize,
 }
 
 /// Reverse complement of a DNA sequence.
@@ -250,18 +252,19 @@ pub fn get_pieces_info(
     primers: &IndexMap<String, PrimerEntry>,
     tags: &TagLookup,
     keep_primers_seq: bool,
+    max_mismatches: usize,
 ) -> Option<PieceInfo> {
     let seq = line.as_bytes();
 
     for (key, primer) in primers {
         // Try forward orientation: start_primers[0] (F) at left, end_primers[1] (RC(R)) at right
-        if let Some((fwd_start, fwd_end)) = find_primer(&primer.start_primers[0], seq, 0) {
+        if let Some((fwd_start, fwd_end)) = find_primer(&primer.start_primers[0], seq, max_mismatches) {
             let (prim_ini_prim, prim_ini_tags) = if keep_primers_seq {
                 (fwd_start, fwd_start)
             } else {
                 (fwd_end, fwd_start)
             };
-            if let Some((rev_start, rev_end)) = find_primer(&primer.end_primers[1], seq, 0) {
+            if let Some((rev_start, rev_end)) = find_primer(&primer.end_primers[1], seq, max_mismatches) {
                 let (prim_fin_prim, prim_fin_tags) = if keep_primers_seq {
                     (rev_end, rev_end)
                 } else {
@@ -292,13 +295,13 @@ pub fn get_pieces_info(
             return None;
         } else {
             // Try reverse orientation: start_primers[1] (R) at left, end_primers[0] (RC(F)) at right
-            if let Some((fwd_start, fwd_end)) = find_primer(&primer.start_primers[1], seq, 0) {
+            if let Some((fwd_start, fwd_end)) = find_primer(&primer.start_primers[1], seq, max_mismatches) {
                 let (prim_ini_prim, prim_ini_tags) = if keep_primers_seq {
                     (fwd_start, fwd_start)
                 } else {
                     (fwd_end, fwd_start)
                 };
-                if let Some((rev_start, rev_end)) = find_primer(&primer.end_primers[0], seq, 0) {
+                if let Some((rev_start, rev_end)) = find_primer(&primer.end_primers[0], seq, max_mismatches) {
                     let (prim_fin_prim, prim_fin_tags) = if keep_primers_seq {
                         (rev_end, rev_end)
                     } else {
@@ -394,7 +397,7 @@ pub fn run(args: SortArgs) -> Result<()> {
         if seq.is_empty() {
             continue;
         }
-        match get_pieces_info(seq, &primers, &tags, args.keep_primers_seq) {
+        match get_pieces_info(seq, &primers, &tags, args.keep_primers_seq, args.primer_mismatches) {
             Some(info) => {
                 fill_hap(&mut hap, &info.tag1, &info.tag2, &info.primer_name, &info.between);
             }
