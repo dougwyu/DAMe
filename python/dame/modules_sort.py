@@ -9,6 +9,42 @@ def RC(seq):
     return seq.translate(transtab)
 
 
+_IUPAC = {
+    'A': frozenset('A'), 'C': frozenset('C'), 'G': frozenset('G'),
+    'T': frozenset('T'), 'R': frozenset('AG'), 'Y': frozenset('CT'),
+    'S': frozenset('CG'), 'W': frozenset('AT'), 'K': frozenset('GT'),
+    'M': frozenset('AC'), 'B': frozenset('CGT'), 'D': frozenset('AGT'),
+    'H': frozenset('ACT'), 'V': frozenset('ACG'), 'N': frozenset('ACGT'),
+}
+
+
+def iupac_matches(primer_base, read_base):
+    """True if read_base (A/C/G/T) satisfies the primer's IUPAC code."""
+    allowed = _IUPAC.get(primer_base)
+    return allowed is not None and read_base in allowed
+
+
+def find_primer(primer, seq, max_mismatches=0):
+    """Leftmost window in seq matching primer with <= max_mismatches
+    substitutions (IUPAC-aware). Returns (start, end) or None."""
+    plen = len(primer)
+    slen = len(seq)
+    if plen > slen:
+        return None
+    for i in range(slen - plen + 1):
+        mismatches = 0
+        ok = True
+        for p, s in zip(primer, seq[i:i + plen]):
+            if not iupac_matches(p, s):
+                mismatches += 1
+                if mismatches > max_mismatches:
+                    ok = False
+                    break
+        if ok:
+            return (i, i + plen)
+    return None
+
+
 def readTags(tags, TAGS):
     with open(tags) as f:
         for line in f:

@@ -1,7 +1,7 @@
 import pytest
 import tempfile
 import os
-from dame.modules_sort import RC, readTags, readPrimers, FillHAP, GetPiecesInfo
+from dame.modules_sort import RC, readTags, readPrimers, FillHAP, GetPiecesInfo, iupac_matches, find_primer
 
 
 def test_RC_palindrome():
@@ -72,3 +72,53 @@ def test_FillHAP_multiple_seqs():
     HAP = FillHAP(HAP, "Tag1", "Tag2", "CO1", "AAAA")
     HAP = FillHAP(HAP, "Tag1", "Tag2", "CO1", "CCCC")
     assert len(HAP["Tag1_Tag2"][2]) == 2
+
+
+def test_iupac_matches_exact():
+    assert iupac_matches("A", "A")
+    assert not iupac_matches("A", "C")
+
+
+def test_iupac_matches_ambiguous():
+    # R = A or G
+    assert iupac_matches("R", "A")
+    assert iupac_matches("R", "G")
+    assert not iupac_matches("R", "C")
+    # N = anything
+    assert iupac_matches("N", "A")
+    assert iupac_matches("N", "T")
+
+
+def test_iupac_matches_non_acgt_read():
+    # A read base of N never satisfies any primer code (matches Rust).
+    assert not iupac_matches("N", "N")
+    assert not iupac_matches("A", "N")
+
+
+def test_find_primer_exact():
+    assert find_primer("ACGT", "XXXXACGTXXXX", 0) == (4, 8)
+    assert find_primer("ACGT", "AAAAAAAA", 0) is None
+
+
+def test_find_primer_leftmost():
+    assert find_primer("ACGT", "ACGTXXXXACGT", 0) == (0, 4)
+
+
+def test_find_primer_one_mismatch():
+    # ACGA differs from ACGT at the last base.
+    assert find_primer("ACGT", "XXXXACGAXXXX", 0) is None
+    assert find_primer("ACGT", "XXXXACGAXXXX", 1) == (4, 8)
+
+
+def test_find_primer_two_mismatches_rejected_at_one():
+    assert find_primer("ACGT", "XXXXAAGAXXXX", 1) is None
+    assert find_primer("ACGT", "XXXXAAGAXXXX", 2) == (4, 8)
+
+
+def test_find_primer_leftmost_within_budget():
+    # GCTTGC (1 mismatch) before exact GCATGC — leftmost-within-budget wins.
+    assert find_primer("GCATGC", "TTGCTTGCATGC", 1) == (2, 8)
+
+
+def test_find_primer_longer_than_seq():
+    assert find_primer("ACGT", "AC", 0) is None
