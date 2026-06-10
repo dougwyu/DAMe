@@ -10,10 +10,16 @@ if [ ! -f "$DAME_BIN" ]; then
     exit 0
 fi
 
+if ! command -v dame-py >/dev/null 2>&1; then
+    echo "SKIP: dame-py not found on PATH (run: pip install -e python/)"
+    exit 0
+fi
+
 TMPPY=$(mktemp -d)
 TMPRS=$(mktemp -d)
 TMPN0=$(mktemp -d)
-trap "rm -rf '$TMPPY' '$TMPRS' '$TMPN0'" EXIT
+TMPN0PY=$(mktemp -d)
+trap "rm -rf '$TMPPY' '$TMPRS' '$TMPN0' '$TMPN0PY'" EXIT
 
 echo "==> Running dame-py sort -m 1..."
 cd "$TMPPY"
@@ -56,7 +62,16 @@ cd "$TMPN0"
     --primers "$FIXTURES/Primers.txt" \
     --tags "$FIXTURES/Tags.txt"
 if [ -f "$TMPN0/Tag1_Tag2.txt" ]; then
-    echo "FAIL: read should NOT be recovered at -m 0"; exit 1
+    echo "FAIL: dame read should NOT be recovered at -m 0"; exit 1
+fi
+
+cd "$TMPN0PY"
+dame-py sort \
+    -fq "$FIXTURES/sample_primer_err.fastq" \
+    -p  "$FIXTURES/Primers.txt" \
+    -t  "$FIXTURES/Tags.txt"
+if [ -f "$TMPN0PY/Tag1_Tag2.txt" ]; then
+    echo "FAIL: dame-py read should NOT be recovered at -m 0"; exit 1
 fi
 
 echo "PASS: dame and dame-py sort agree at -m 1 and reject at -m 0"
