@@ -438,7 +438,7 @@ are stripped unless `--keep-primers-seq` is passed to `dame sort`.
 
 | Flag (Rust) | Flag (Python) | Meaning | Default |
 |---|---|---|---|
-| `--keep-primers-seq` | `-keepPrimersSeq` | Retain primer sequences in output instead of stripping them | off |
+| `--keep-primers-seq` | `--keepPrimersSeq` | Retain primer sequences in output instead of stripping them | off |
 | `--primer-mismatches N` | `-m N` | Allow up to N substitutions per primer match (IUPAC-aware). Tags are always matched exactly. | 0 |
 
 ### What Sort Does Not Output
