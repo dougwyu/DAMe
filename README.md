@@ -1,4 +1,4 @@
-# DAMe v2.3: DNA Metabarcoding toolkit
+# DAMe v2.4: DNA Metabarcoding toolkit
 
 DAMe demultiplexes pooled metabarcoding / eDNA FASTQ reads by primer and
 tag sequences (**sort**), optionally removes chimeric sequences (**chimera**),
@@ -100,7 +100,8 @@ cd rust && cargo build --release
 dame sort \
   --fq Pool1.fastq \
   --primers Primers.txt \
-  --tags Tags.txt
+  --tags Tags.txt \
+  --primer-mismatches 1
 
 dame filter \
   --ps-info PSinfo.txt \
@@ -112,7 +113,7 @@ dame rsi Comparisons_2PCRs.txt
 ## Pipeline overview
 
 ```
-dame sort     -fq POOL.fastq --primers P.txt --tags T.txt
+dame sort     -fq POOL.fastq --primers P.txt --tags T.txt [--primer-mismatches N]
               → TagA_TagB.txt (collapsed unique seqs + counts) per tag pair
               → SummaryCounts.txt
 
@@ -216,6 +217,17 @@ codebase:
    rates.  All integration tests continue to produce byte-identical output to
    `dame-py`.  On CO1 tutorial primers with 8 tags, the measured sort speedup
    is ~5%; larger tag panels should benefit more from the O(1) lookup.
+
+10. **DAMe v2.4 — Configurable primer mismatches.**  `sort` gained a
+    `-m`/`--primer-mismatches N` option (default 0) that tolerates up to N
+    substitutions per primer match, IUPAC-aware, using leftmost-within-budget
+    selection.  The budget applies independently to each of the four primer
+    sites (forward/reverse orientation × start/end).  Tags are still matched
+    exactly.  At N=0 the output is byte-identical to v2.3, verified by the
+    existing integration tests; a new `run_sort_mismatch.sh` checks both
+    implementations agree at N=1.  The Python primer matcher was rewritten from
+    `re` to a manual IUPAC sliding window mirroring Rust, removing the `re`
+    dependency.
 
 ## Documentation
 
