@@ -6,13 +6,6 @@ from dame.modules_sort import (
     PrintSortedCollapsedCountedSeqs, PrintSummaryFile,
 )
 
-AMBIG = {
-    'A': "A", 'B': "[CGT]", 'C': "C", 'D': "[AGT]", 'G': "G",
-    'H': "[ACT]", 'K': "[GT]", 'M': "[AC]", 'N': "[ACGT]", 'R': "[AG]",
-    'S': "[CG]", 'T': "T", 'V': "[ACG]", 'W': "[AT]", 'Y': "[CT]",
-}
-
-
 def register_subcommand(subparsers):
     p = subparsers.add_parser(
         "sort",
@@ -25,6 +18,8 @@ def register_subcommand(subparsers):
                    help="Input text file with tag names and sequences [Format: TagSeq\\tTagName]")
     p.add_argument("--keepPrimersSeq", action="store_true",
                    help="Keep primer sequences instead of trimming them [default not set]")
+    p.add_argument("-m", "--primer-mismatches", dest="primer_mismatches", type=int, default=0,
+                   help="Max substitutions allowed per primer match [default 0]")
     p.set_defaults(func=run)
 
 
@@ -35,7 +30,7 @@ def run(args):
     CountErrors = 0
 
     TAGS = readTags(args.t, TAGS)
-    PRIMERS = readPrimers(args.p, PRIMERS, AMBIG)
+    PRIMERS = readPrimers(args.p, PRIMERS)
 
     with open(args.fq) as f:
         line = f.readline()  # header line
@@ -43,7 +38,7 @@ def run(args):
             line = f.readline().rstrip()  # seq line
             if not line:
                 break
-            Info = GetPiecesInfo(line, PRIMERS, TAGS, args.keepPrimersSeq)
+            Info = GetPiecesInfo(line, PRIMERS, TAGS, args.keepPrimersSeq, args.primer_mismatches)
             if len(Info) == 1:
                 f.readline()  # "+" line
                 f.readline()  # qual line
@@ -69,6 +64,7 @@ def main():
     parser.add_argument("-p", required=True)
     parser.add_argument("-t", required=True)
     parser.add_argument("--keepPrimersSeq", action="store_true")
+    parser.add_argument("-m", "--primer-mismatches", dest="primer_mismatches", type=int, default=0)
     run(parser.parse_args())
 
 

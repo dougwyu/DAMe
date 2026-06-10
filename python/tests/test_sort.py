@@ -38,16 +38,12 @@ def test_readTags(tmp_path):
 def test_readPrimers(tmp_path):
     primers_file = tmp_path / "primers.txt"
     primers_file.write_text("CO1\tACGT\tTTTT\n")
-    AMBIG = {'A': "A", 'C': "C", 'G': "G", 'T': "T",
-             'N': "[ACGT]", 'R': "[AG]", 'Y': "[CT]",
-             'M': "[AC]", 'K': "[GT]", 'S': "[CG]",
-             'W': "[AT]", 'B': "[CGT]", 'D': "[AGT]",
-             'H': "[ACT]", 'V': "[ACG]"}
     PRIMERS = {}
-    result = readPrimers(str(primers_file), PRIMERS, AMBIG)
+    result = readPrimers(str(primers_file), PRIMERS)
     assert "CO1" in result
-    assert len(result["CO1"]) == 2  # [forward_list, rc_list]
-    assert len(result["CO1"][0]) == 2  # F and R on A side
+    assert len(result["CO1"]) == 2          # [forward_list, rc_list]
+    assert result["CO1"][0] == ["ACGT", "TTTT"]      # F, R (raw)
+    assert result["CO1"][1] == ["ACGT", "AAAA"]      # RC(F), RC(R)
 
 
 def test_FillHAP_new_entry():
@@ -122,3 +118,27 @@ def test_find_primer_leftmost_within_budget():
 
 def test_find_primer_longer_than_seq():
     assert find_primer("ACGT", "AC", 0) is None
+
+
+def _mismatch_fixtures(tmp_path):
+    tags_file = tmp_path / "tags.txt"
+    tags_file.write_text("AAAA\tTag1\nCCCC\tTag2\nGGGG\tTag3\nTTTT\tTag4\n")
+    primers_file = tmp_path / "primers.txt"
+    primers_file.write_text("CO1\tACGT\tTGCA\n")
+    TAGS = readTags(str(tags_file), {})
+    PRIMERS = readPrimers(str(primers_file), {})
+    return PRIMERS, TAGS
+
+
+def test_GetPiecesInfo_one_mismatch(tmp_path):
+    PRIMERS, TAGS = _mismatch_fixtures(tmp_path)
+    # Forward primer ACGT miscalled as ACGA.
+    line = "AAAAACGAATATATTGCAGGGG"
+    # N=0 -> rejected (error sentinel [1])
+    assert GetPiecesInfo(line, PRIMERS, TAGS, False, 0) == [1]
+    # N=1 -> sorts to Tag1_Tag2 with barcode ATATAT
+    info = GetPiecesInfo(line, PRIMERS, TAGS, False, 1)
+    assert info[0] == "Tag1"
+    assert info[1] == "Tag2"
+    assert info[2] == "CO1"
+    assert info[3] == "ATATAT"
