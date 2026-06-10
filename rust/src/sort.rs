@@ -91,16 +91,30 @@ pub fn iupac_matches(primer_byte: u8, read_byte: u8) -> bool {
     }
 }
 
-/// Find the leftmost occurrence of `primer` in `seq` using IUPAC matching.
-/// Returns `Some((start, end))` where `end = start + primer.len()`, or `None` if not found.
-pub fn find_primer(primer: &[u8], seq: &[u8]) -> Option<(usize, usize)> {
+/// Find the leftmost occurrence of `primer` in `seq` using IUPAC matching,
+/// tolerating up to `max_mismatches` substitutions (positions where the read
+/// base does not satisfy the primer's IUPAC code).
+/// Returns the first window within budget as `Some((start, end))`, or `None`.
+/// `max_mismatches == 0` is exact IUPAC matching.
+pub fn find_primer(primer: &[u8], seq: &[u8], max_mismatches: usize) -> Option<(usize, usize)> {
     let plen = primer.len();
     let slen = seq.len();
     if plen > slen {
         return None;
     }
     for i in 0..=(slen - plen) {
-        if primer.iter().zip(&seq[i..i + plen]).all(|(&p, &s)| iupac_matches(p, s)) {
+        let mut mismatches = 0usize;
+        let mut ok = true;
+        for (&p, &s) in primer.iter().zip(&seq[i..i + plen]) {
+            if !iupac_matches(p, s) {
+                mismatches += 1;
+                if mismatches > max_mismatches {
+                    ok = false;
+                    break;
+                }
+            }
+        }
+        if ok {
             return Some((i, i + plen));
         }
     }
@@ -241,13 +255,13 @@ pub fn get_pieces_info(
 
     for (key, primer) in primers {
         // Try forward orientation: start_primers[0] (F) at left, end_primers[1] (RC(R)) at right
-        if let Some((fwd_start, fwd_end)) = find_primer(&primer.start_primers[0], seq) {
+        if let Some((fwd_start, fwd_end)) = find_primer(&primer.start_primers[0], seq, 0) {
             let (prim_ini_prim, prim_ini_tags) = if keep_primers_seq {
                 (fwd_start, fwd_start)
             } else {
                 (fwd_end, fwd_start)
             };
-            if let Some((rev_start, rev_end)) = find_primer(&primer.end_primers[1], seq) {
+            if let Some((rev_start, rev_end)) = find_primer(&primer.end_primers[1], seq, 0) {
                 let (prim_fin_prim, prim_fin_tags) = if keep_primers_seq {
                     (rev_end, rev_end)
                 } else {
@@ -278,13 +292,13 @@ pub fn get_pieces_info(
             return None;
         } else {
             // Try reverse orientation: start_primers[1] (R) at left, end_primers[0] (RC(F)) at right
-            if let Some((fwd_start, fwd_end)) = find_primer(&primer.start_primers[1], seq) {
+            if let Some((fwd_start, fwd_end)) = find_primer(&primer.start_primers[1], seq, 0) {
                 let (prim_ini_prim, prim_ini_tags) = if keep_primers_seq {
                     (fwd_start, fwd_start)
                 } else {
                     (fwd_end, fwd_start)
                 };
-                if let Some((rev_start, rev_end)) = find_primer(&primer.end_primers[0], seq) {
+                if let Some((rev_start, rev_end)) = find_primer(&primer.end_primers[0], seq, 0) {
                     let (prim_fin_prim, prim_fin_tags) = if keep_primers_seq {
                         (rev_end, rev_end)
                     } else {

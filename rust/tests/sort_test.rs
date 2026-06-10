@@ -132,31 +132,25 @@ fn test_iupac_matches_non_acgt_read_byte() {
 #[test]
 fn test_find_primer_exact() {
     use dame::sort::find_primer;
-    // primer ACGT in XXXXACGTXXXX — should find at position 4
     let seq = b"XXXXACGTXXXX";
     let primer = b"ACGT";
-    let result = find_primer(primer, seq);
-    assert_eq!(result, Some((4, 8)));
+    assert_eq!(find_primer(primer, seq, 0), Some((4, 8)));
 }
 
 #[test]
 fn test_find_primer_iupac() {
     use dame::sort::find_primer;
-    // primer with R (= A or G): GCRTGC matches GCATGC
     let seq = b"TTTTGCATGCTTTT";
     let primer = b"GCRTGC";
-    let result = find_primer(primer, seq);
-    assert_eq!(result, Some((4, 10)));
+    assert_eq!(find_primer(primer, seq, 0), Some((4, 10)));
 }
 
 #[test]
 fn test_find_primer_iupac_second_option() {
     use dame::sort::find_primer;
-    // primer GCRTGC also matches GCGTGC (R = G)
     let seq = b"TTTTGCGTGCTTTT";
     let primer = b"GCRTGC";
-    let result = find_primer(primer, seq);
-    assert_eq!(result, Some((4, 10)));
+    assert_eq!(find_primer(primer, seq, 0), Some((4, 10)));
 }
 
 #[test]
@@ -164,17 +158,15 @@ fn test_find_primer_not_found() {
     use dame::sort::find_primer;
     let seq = b"AAAAAAAAAA";
     let primer = b"GCATGC";
-    assert_eq!(find_primer(primer, seq), None);
+    assert_eq!(find_primer(primer, seq, 0), None);
 }
 
 #[test]
 fn test_find_primer_leftmost() {
     use dame::sort::find_primer;
-    // primer appears twice — must return leftmost
     let seq = b"ACGTXXXXACGT";
     let primer = b"ACGT";
-    let result = find_primer(primer, seq);
-    assert_eq!(result, Some((0, 4)));
+    assert_eq!(find_primer(primer, seq, 0), Some((0, 4)));
 }
 
 #[test]
@@ -182,7 +174,48 @@ fn test_find_primer_primer_longer_than_seq() {
     use dame::sort::find_primer;
     let seq = b"AC";
     let primer = b"ACGT";
-    assert_eq!(find_primer(primer, seq), None);
+    assert_eq!(find_primer(primer, seq, 0), None);
+}
+
+#[test]
+fn test_find_primer_one_mismatch_found() {
+    use dame::sort::find_primer;
+    // ACGA differs from primer ACGT at the last base; N=1 accepts it.
+    let seq = b"XXXXACGAXXXX";
+    let primer = b"ACGT";
+    assert_eq!(find_primer(primer, seq, 0), None);
+    assert_eq!(find_primer(primer, seq, 1), Some((4, 8)));
+}
+
+#[test]
+fn test_find_primer_two_mismatches_rejected_at_one() {
+    use dame::sort::find_primer;
+    // AAGA differs from ACGT at two positions; N=1 rejects, N=2 accepts.
+    let seq = b"XXXXAAGAXXXX";
+    let primer = b"ACGT";
+    assert_eq!(find_primer(primer, seq, 1), None);
+    assert_eq!(find_primer(primer, seq, 2), Some((4, 8)));
+}
+
+#[test]
+fn test_find_primer_iupac_plus_mismatch() {
+    use dame::sort::find_primer;
+    // GCRTGC: R matches A or G (0 cost). Read GCATGA differs only at last base.
+    let seq = b"TTTTGCATGATTTT";
+    let primer = b"GCRTGC";
+    assert_eq!(find_primer(primer, seq, 0), None);
+    assert_eq!(find_primer(primer, seq, 1), Some((4, 10)));
+}
+
+#[test]
+fn test_find_primer_leftmost_within_budget() {
+    use dame::sort::find_primer;
+    // GCTTGC (1 mismatch) sits before an exact GCATGC. Leftmost-within-budget
+    // returns the earlier near-match, NOT the later exact match.
+    // index: T0 T1 G2 C3 T4 T5 G6 C7 A8 T9 G10 C11
+    let seq = b"TTGCTTGCATGC";
+    let primer = b"GCATGC";
+    assert_eq!(find_primer(primer, seq, 1), Some((2, 8)));
 }
 
 // ── read_tags ─────────────────────────────────────────────────────────────────
