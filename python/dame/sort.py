@@ -3,6 +3,7 @@ import sys
 from dame.modules_sort import (
     readTags, readPrimers, GetPiecesInfo, GetPiecesInfoMismatch, FillHAP,
     PrintSortedCollapsedCountedSeqs, PrintSummaryFile, min_equal_length_tag_distance,
+    compile_primer_regexes,
 )
 from dame.utils import smart_open
 
@@ -43,6 +44,8 @@ def run(args):
                   f"minimum tag Hamming distance is {min_d}, so the safe maximum is {safe}.",
                   file=sys.stderr)
     use_anchored = args.primer_mismatches > 0 or args.tag_mismatches > 0
+    # Exact path uses the fast compiled-regex matcher; build patterns once.
+    PRIMERS_RX = None if use_anchored else compile_primer_regexes(PRIMERS)
 
     with smart_open(args.fq) as f:
         line = f.readline()  # header line
@@ -54,7 +57,7 @@ def run(args):
                 Info = GetPiecesInfoMismatch(line, PRIMERS, TAGS, args.keepPrimersSeq,
                                              args.primer_mismatches, args.tag_mismatches)
             else:
-                Info = GetPiecesInfo(line, PRIMERS, TAGS, args.keepPrimersSeq, args.primer_mismatches)
+                Info = GetPiecesInfo(line, PRIMERS_RX, TAGS, args.keepPrimersSeq)
             if len(Info) == 1:
                 f.readline()  # "+" line
                 f.readline()  # qual line

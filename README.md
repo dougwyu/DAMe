@@ -72,6 +72,35 @@ primers with 8 tags, the measured sort speedup is ~5% (the small N_tags
 limits the benefit of the O(1) lookup, and the synthetic dataset is
 parsing-bound).  Larger tag panels should benefit more.
 
+The v2.4 (gzip input) and v2.5 (tag mismatches + anchored matching) changes
+keep the default sort path fast.  Python's exact (no-mismatch) matcher uses a
+compiled IUPAC regex — the same C-accelerated path as v2.3 — and the
+interpreted manual matcher runs only when `--primer-mismatches` or
+`--tag-mismatches` is set.  (An interim build had replaced the Python regex
+matcher with a manual sliding window for *all* reads; on a 98k-read pool that
+was ~10× slower for the common no-mismatch case — ~4.4 s vs ~0.43 s in a
+controlled same-session run — so the regex fast path was restored for the
+defaults.)  Rust uses its byte-level matcher throughout and is unaffected.
+
+Fresh-session measurement (196,000 reads, 2 pools, 8-tag CO1 panel; best of 5;
+reproduce with `benchmark/run_sort_benchmark.sh`).  These absolute numbers are
+**not** comparable to the v2.0–v2.3 rows above — different machine, load and
+dataset — so read the within-session ratios, not the milliseconds:
+
+| sort, per pool (98k reads) | Python 3 | Rust 2.5 |
+|---|---|---|
+| default (`-m 0 -mt 0`)  | ~87 ms  | ~15 ms |
+| `--primer-mismatches 1` | ~102 ms | ~16 ms |
+| `--tag-mismatches 1`    | ~101 ms | ~16 ms |
+
+At this panel size the anchored matcher (used when mismatches are enabled) adds
+~15–20% in Python and is within noise in Rust.  Its per-read work is roughly
+`O(N_primers × N_tags)` for typical panels (a tag scan at each read end, primers
+checked at the anchored offset), rising toward `O(N_primers × N_tags²)` when
+many tags fall within the mismatch budget — so very large tag panels combined
+with a high `--tag-mismatches` will cost proportionally more.  The default
+exact path is unaffected.
+
 ## Quick start
 
 ### Python version
@@ -230,9 +259,9 @@ codebase:
     sites (forward/reverse orientation × start/end).  Tags are still matched
     exactly.  At N=0 the output is byte-identical to v2.3, verified by the
     existing integration tests; a new `run_sort_mismatch.sh` checks both
-    implementations agree at N=1.  The Python primer matcher was rewritten from
-    `re` to a manual IUPAC sliding window mirroring Rust, removing the `re`
-    dependency.
+    implementations agree at N=1.  The Python *mismatch* matcher is a manual
+    IUPAC sliding window mirroring Rust; the exact (no-mismatch) path keeps the
+    faster compiled-regex matcher (see Performance).
 
 11. **DAMe v2.5 — Tag mismatches + anchored matching.**  `sort` gained
     `--tag-mismatches N` (`-mt` in Python; default 0), a per-tag substitution
