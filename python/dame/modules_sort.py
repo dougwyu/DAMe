@@ -1,6 +1,3 @@
-import os
-import sys
-
 
 def RC(seq):
     seq = seq[::-1]

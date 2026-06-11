@@ -344,6 +344,42 @@ fn test_get_pieces_info_forward_read_with_one_mismatch() {
 }
 
 #[test]
+fn test_get_pieces_info_end_primer_mismatch() {
+    // Forward orientation, mismatch in the END primer RC(R)=TGCA (miscalled TGCT).
+    // Forward primer ACGT is exact. At N=0 rejected; at N=1 recovered.
+    let tags = make_test_tags();
+    let primers = make_test_primers();
+    let line = "AAAAACGTATATATTGCTGGGG";
+    assert!(get_pieces_info(line, &primers, &tags, false, 0).is_none());
+    let info = get_pieces_info(line, &primers, &tags, false, 1).unwrap();
+    assert_eq!(info.tag1, "Tag1");
+    assert_eq!(info.tag2, "Tag2");
+    assert_eq!(info.between, "ATATAT");
+    assert_eq!(info.primer_name, "CO1");
+}
+
+#[test]
+fn test_get_pieces_info_reverse_orientation_mismatch() {
+    // Reverse-orientation read with non-palindromic primers F=AAAG, R=CCGT.
+    // Start primer R=CCGT is miscalled CCGA (1 mismatch); end primer RC(F)=CTTT exact.
+    // Forward primer AAAG never appears, so the reverse branch is taken.
+    let dir = tempdir().unwrap();
+    let tag_file = dir.path().join("tags.txt");
+    std::fs::write(&tag_file, "AAAA\tTag1\nCCCC\tTag2\nGGGG\tTag3\nTTTT\tTag4\n").unwrap();
+    let prim_file = dir.path().join("primers.txt");
+    std::fs::write(&prim_file, "CO1\tAAAG\tCCGT\n").unwrap();
+    let tags = read_tags(tag_file.to_str().unwrap()).unwrap();
+    let primers = read_primers(prim_file.to_str().unwrap()).unwrap();
+    let line = "CCCCCCGAGGGGGGCTTTTTTT";
+    assert!(get_pieces_info(line, &primers, &tags, false, 0).is_none());
+    let info = get_pieces_info(line, &primers, &tags, false, 1).unwrap();
+    assert_eq!(info.tag1, "Tag1");
+    assert_eq!(info.tag2, "Tag2");
+    assert_eq!(info.between, "CCCCCC");
+    assert_eq!(info.primer_name, "CO1");
+}
+
+#[test]
 fn test_get_pieces_info_error_read() {
     let tags = make_test_tags();
     let primers = make_test_primers();

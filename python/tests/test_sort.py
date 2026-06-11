@@ -142,3 +142,32 @@ def test_GetPiecesInfo_one_mismatch(tmp_path):
     assert info[1] == "Tag2"
     assert info[2] == "CO1"
     assert info[3] == "ATATAT"
+
+
+def test_GetPiecesInfo_end_primer_mismatch(tmp_path):
+    PRIMERS, TAGS = _mismatch_fixtures(tmp_path)
+    # Forward primer ACGT exact; END primer RC(R)=TGCA miscalled as TGCT.
+    line = "AAAAACGTATATATTGCTGGGG"
+    assert GetPiecesInfo(line, PRIMERS, TAGS, False, 0) == [1]
+    info = GetPiecesInfo(line, PRIMERS, TAGS, False, 1)
+    assert info[0] == "Tag1"
+    assert info[1] == "Tag2"
+    assert info[2] == "CO1"
+    assert info[3] == "ATATAT"
+
+
+def test_GetPiecesInfo_reverse_orientation_mismatch(tmp_path):
+    tags_file = tmp_path / "tags.txt"
+    tags_file.write_text("AAAA\tTag1\nCCCC\tTag2\nGGGG\tTag3\nTTTT\tTag4\n")
+    primers_file = tmp_path / "primers.txt"
+    primers_file.write_text("CO1\tAAAG\tCCGT\n")
+    TAGS = readTags(str(tags_file), {})
+    PRIMERS = readPrimers(str(primers_file), {})
+    # Reverse-orientation read; start primer R=CCGT miscalled CCGA.
+    line = "CCCCCCGAGGGGGGCTTTTTTT"
+    assert GetPiecesInfo(line, PRIMERS, TAGS, False, 0) == [1]
+    info = GetPiecesInfo(line, PRIMERS, TAGS, False, 1)
+    assert info[0] == "Tag1"
+    assert info[1] == "Tag2"
+    assert info[2] == "CO1"
+    assert info[3] == "CCCCCC"
