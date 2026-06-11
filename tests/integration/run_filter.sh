@@ -57,19 +57,15 @@ for f in FilteredReads.fna Comparisons_2PCRs.txt; do
 done
 
 echo "==> Comparing FilteredReads.fna..."
-# Sort FASTA by sequence line for order-independent comparison.
-# dame-py and dame may assign different _N indices but must contain the same sequences.
-fasta_sequences() {
-    # Extract sequence lines only (non-header lines), sort them
-    grep -v "^>" "$1" | sort
-}
-if ! diff <(fasta_sequences "$TMPPY/FilteredReads.fna") <(fasta_sequences "$TMPRS/FilteredReads.fna"); then
-    echo "FAIL: FilteredReads.fna sequences differ between dame-py and dame"
+# Both implementations now sort sequences deterministically, so the full output
+# (including FASTA headers and the per-sequence _N indices) must be identical.
+if ! diff "$TMPPY/FilteredReads.fna" "$TMPRS/FilteredReads.fna"; then
+    echo "FAIL: FilteredReads.fna differs between dame-py and dame"
     exit 1
 fi
 
 echo "==> Comparing Comparisons_2PCRs.txt..."
-if ! diff <(sort "$TMPPY/Comparisons_2PCRs.txt") <(sort "$TMPRS/Comparisons_2PCRs.txt"); then
+if ! diff "$TMPPY/Comparisons_2PCRs.txt" "$TMPRS/Comparisons_2PCRs.txt"; then
     echo "FAIL: Comparisons_2PCRs.txt differs between dame-py and dame"
     exit 1
 fi
