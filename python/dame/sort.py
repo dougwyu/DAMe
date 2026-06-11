@@ -8,12 +8,13 @@ def register_subcommand(subparsers):
         "sort",
         description="Sort amplicon sequences tagged on each end by tag combination",
     )
-    p.add_argument("-fq", required=True, help="Input fastq with amplicon sequences")
-    p.add_argument("-p", required=True,
+    p.add_argument("-fq", "--fq", dest="fq", required=True,
+                   help="Input fastq with amplicon sequences")
+    p.add_argument("-p", "--primers", dest="p", required=True,
                    help="Input text file with primer name and sequences [Format: Name\\tForwardSeq\\tReverseSeq]")
-    p.add_argument("-t", required=True,
+    p.add_argument("-t", "--tags", dest="t", required=True,
                    help="Input text file with tag names and sequences [Format: TagSeq\\tTagName]")
-    p.add_argument("--keepPrimersSeq", action="store_true",
+    p.add_argument("--keepPrimersSeq", "--keep-primers-seq", dest="keepPrimersSeq", action="store_true",
                    help="Keep primer sequences instead of trimming them [default not set]")
     p.add_argument("-m", "--primer-mismatches", dest="primer_mismatches", type=int, default=0,
                    help="Max substitutions allowed per primer match [default 0]")

@@ -3,9 +3,9 @@ def register_subcommand(subparsers):
         "decollapse",
         description="Expand unique sequences to individual reads by frequency",
     )
-    p.add_argument("-input", required=True,
+    p.add_argument("-input", "--input", dest="input", required=True,
                    help="Text file with tag combination and freq of each unique seq")
-    p.add_argument("-outFas", default="Decollapsed.fasta",
+    p.add_argument("-outFas", "--out-fas", dest="outFas", default="Decollapsed.fasta",
                    help='Output fasta file [default "Decollapsed.fasta"]')
     p.set_defaults(func=run)
 

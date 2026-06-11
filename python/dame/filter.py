@@ -9,14 +9,14 @@ def register_subcommand(subparsers):
         "filter",
         description="Filter multiplexed sequences by PCR presence, abundance, and length",
     )
-    p.add_argument("-psInfo", required=True,
+    p.add_argument("-psInfo", "--ps-info", dest="psInfo", required=True,
                    help="Text file with tag combination info per PCR reaction per sample")
-    p.add_argument("-x", type=int, default=2, help="Number of PCR rxns performed per sample")
-    p.add_argument("-y", type=int, default=1, help="Number of PCR rxns sequence must be present in")
-    p.add_argument("-p", type=int, default=1, help="Number of pools [default 1]")
-    p.add_argument("-t", type=int, default=1, help="Minimum count per unique sequence")
-    p.add_argument("-l", type=int, default=100, help="Minimum sequence length")
-    p.add_argument("--chimeraChecked", action="store_true",
+    p.add_argument("-x", "--x", dest="x", type=int, default=2, help="Number of PCR rxns performed per sample")
+    p.add_argument("-y", "--y", dest="y", type=int, default=1, help="Number of PCR rxns sequence must be present in")
+    p.add_argument("-p", "--p", dest="p", type=int, default=1, help="Number of pools [default 1]")
+    p.add_argument("-t", "--t", dest="t", type=int, default=1, help="Minimum count per unique sequence")
+    p.add_argument("-l", "--l", dest="l", type=int, default=100, help="Minimum sequence length")
+    p.add_argument("--chimeraChecked", "--chimera-checked", dest="chimeraChecked", action="store_true",
                    help="Use chimera-checked sorted collapsed files [default not set]")
     p.set_defaults(func=run)
 
