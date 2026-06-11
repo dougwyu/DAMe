@@ -93,6 +93,20 @@ pub fn iupac_matches(primer_byte: u8, read_byte: u8) -> bool {
     }
 }
 
+/// Count positions where `region` fails the IUPAC constraint of `pattern`.
+/// Returns `usize::MAX` when lengths differ, so an out-of-range region never
+/// satisfies any mismatch budget.
+pub fn hamming_iupac(pattern: &[u8], region: &[u8]) -> usize {
+    if pattern.len() != region.len() {
+        return usize::MAX;
+    }
+    pattern
+        .iter()
+        .zip(region)
+        .filter(|(&p, &r)| !iupac_matches(p, r))
+        .count()
+}
+
 /// Find the leftmost occurrence of `primer` in `seq` using IUPAC matching,
 /// tolerating up to `max_mismatches` substitutions (positions where the read
 /// base does not satisfy the primer's IUPAC code).
@@ -150,19 +164,26 @@ pub struct PieceInfo {
     pub between: String,
 }
 
-/// Pre-built O(1) reverse lookup for tag sequences.
-/// `by_fwd` maps forward tag bytes → tag name; `by_rc` maps RC tag bytes → tag name.
+/// Reverse lookups for tag sequences.
+/// `by_fwd`/`by_rc` are O(1) maps used by the exact path; `fwd_list`/`rc_list`
+/// are file-ordered, name-deduplicated lists iterated by the anchored matcher.
 pub struct TagLookup {
     pub by_fwd: HashMap<Vec<u8>, String>,
     pub by_rc: HashMap<Vec<u8>, String>,
+    pub fwd_list: Vec<(Vec<u8>, String)>,
+    pub rc_list: Vec<(Vec<u8>, String)>,
 }
 
-/// Read a Tags file (TagSeq\tTagName per line) and build O(1) reverse lookup maps.
+/// Read a Tags file (TagSeq\tTagName per line) and build O(1) reverse lookup maps
+/// plus file-ordered, name-deduplicated lists for the anchored matcher.
 pub fn read_tags(path: &str) -> Result<TagLookup> {
     let file = File::open(path).with_context(|| format!("Cannot open tags file: {path}"))?;
     let reader = BufReader::new(file);
     let mut by_fwd: HashMap<Vec<u8>, String> = HashMap::default();
     let mut by_rc: HashMap<Vec<u8>, String> = HashMap::default();
+    let mut fwd_list: Vec<(Vec<u8>, String)> = Vec::new();
+    let mut rc_list: Vec<(Vec<u8>, String)> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for line in reader.lines() {
         let line = line?;
@@ -178,9 +199,13 @@ pub fn read_tags(path: &str) -> Result<TagLookup> {
         let name = parts[1];
         by_fwd.insert(seq.as_bytes().to_vec(), name.to_string());
         by_rc.insert(rc(seq).as_bytes().to_vec(), name.to_string());
+        if seen.insert(name.to_string()) {
+            fwd_list.push((seq.as_bytes().to_vec(), name.to_string()));
+            rc_list.push((rc(seq).as_bytes().to_vec(), name.to_string()));
+        }
     }
 
-    Ok(TagLookup { by_fwd, by_rc })
+    Ok(TagLookup { by_fwd, by_rc, fwd_list, rc_list })
 }
 
 /// Read a Primers file (Name\tFwdSeq\tRevSeq per line).

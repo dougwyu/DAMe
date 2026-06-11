@@ -218,6 +218,43 @@ fn test_find_primer_leftmost_within_budget() {
     assert_eq!(find_primer(primer, seq, 1), Some((2, 8)));
 }
 
+// ── hamming_iupac ─────────────────────────────────────────────────────────────
+
+#[test]
+fn test_hamming_iupac_exact() {
+    use dame::sort::hamming_iupac;
+    assert_eq!(hamming_iupac(b"ACGT", b"ACGT"), 0);
+    assert_eq!(hamming_iupac(b"ACGT", b"ACGA"), 1);
+    assert_eq!(hamming_iupac(b"ACGT", b"AAGA"), 2);
+}
+
+#[test]
+fn test_hamming_iupac_respects_iupac() {
+    use dame::sort::hamming_iupac;
+    assert_eq!(hamming_iupac(b"GCRTGC", b"GCATGC"), 0);
+    assert_eq!(hamming_iupac(b"GCRTGC", b"GCGTGC"), 0);
+    assert_eq!(hamming_iupac(b"GCRTGC", b"GCCTGC"), 1);
+}
+
+#[test]
+fn test_hamming_iupac_length_mismatch_is_max() {
+    use dame::sort::hamming_iupac;
+    assert_eq!(hamming_iupac(b"ACGT", b"ACG"), usize::MAX);
+}
+
+#[test]
+fn test_read_tags_ordered_lists() {
+    use dame::sort::read_tags;
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("tags.txt");
+    std::fs::write(&path, "AAAA\tTag1\nCCCC\tTag2\n").unwrap();
+    let tags = read_tags(path.to_str().unwrap()).unwrap();
+    assert_eq!(tags.fwd_list[0], (b"AAAA".to_vec(), "Tag1".to_string()));
+    assert_eq!(tags.fwd_list[1], (b"CCCC".to_vec(), "Tag2".to_string()));
+    assert_eq!(tags.rc_list[0], (b"TTTT".to_vec(), "Tag1".to_string()));
+    assert_eq!(tags.rc_list[1], (b"GGGG".to_vec(), "Tag2".to_string()));
+}
+
 // ── read_tags ─────────────────────────────────────────────────────────────────
 
 #[test]
