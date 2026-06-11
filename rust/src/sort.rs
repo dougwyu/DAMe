@@ -368,6 +368,117 @@ pub fn get_pieces_info(
     None
 }
 
+/// Anchored matcher used when primer or tag mismatches are allowed.
+/// Finds tag candidates at the read ends (IUPAC Hamming <= max_tag_mm), checks
+/// primers at the anchored offsets (<= max_primer_mm), scores each valid
+/// assembly by total mismatches, returns the unique minimum, and returns None
+/// when zero assemblies are valid or the minimum is tied (ambiguous).
+pub fn get_pieces_info_anchored(
+    line: &str,
+    primers: &IndexMap<String, PrimerEntry>,
+    tags: &TagLookup,
+    keep_primers_seq: bool,
+    max_primer_mm: usize,
+    max_tag_mm: usize,
+) -> Option<PieceInfo> {
+    let line_upper = line.to_ascii_uppercase();
+    let seq = line_upper.as_bytes();
+    let slen = seq.len();
+
+    let mut best: Option<PieceInfo> = None;
+    let mut best_score: usize = usize::MAX;
+    let mut tied = false;
+
+    for (key, primer) in primers {
+        for orientation in 0..2usize {
+            let (start_primer, end_primer) = if orientation == 0 {
+                (&primer.start_primers[0], &primer.end_primers[1])
+            } else {
+                (&primer.start_primers[1], &primer.end_primers[0])
+            };
+
+            for (tag1_seq, tag1_name) in &tags.fwd_list {
+                let t1l = tag1_seq.len();
+                if t1l + start_primer.len() > slen {
+                    continue;
+                }
+                let tag1_mm = hamming_iupac(tag1_seq, &seq[0..t1l]);
+                if tag1_mm > max_tag_mm {
+                    continue;
+                }
+                let p_start = t1l;
+                let p_end = t1l + start_primer.len();
+                let start_mm = hamming_iupac(start_primer, &seq[p_start..p_end]);
+                if start_mm > max_primer_mm {
+                    continue;
+                }
+
+                for (tag2_seq, tag2_name) in &tags.rc_list {
+                    let t2l = tag2_seq.len();
+                    if t2l + end_primer.len() > slen {
+                        continue;
+                    }
+                    let tag2_start = slen - t2l;
+                    let tag2_mm = hamming_iupac(tag2_seq, &seq[tag2_start..]);
+                    if tag2_mm > max_tag_mm {
+                        continue;
+                    }
+                    let ep_start = tag2_start - end_primer.len();
+                    let ep_end = tag2_start;
+                    if ep_start < p_end {
+                        continue;
+                    }
+                    let end_mm = hamming_iupac(end_primer, &seq[ep_start..ep_end]);
+                    if end_mm > max_primer_mm {
+                        continue;
+                    }
+
+                    let (b_start, b_end) = if keep_primers_seq {
+                        (p_start, ep_end)
+                    } else {
+                        (p_end, ep_start)
+                    };
+                    if b_start >= b_end {
+                        continue;
+                    }
+                    let between_raw = &line_upper[b_start..b_end];
+                    let between = if orientation == 0 {
+                        between_raw.to_string()
+                    } else {
+                        String::from_utf8(rc_bytes(between_raw.as_bytes()))
+                            .expect("rc_bytes output is valid ASCII by construction")
+                    };
+
+                    let (tn1, tn2) = if orientation == 0 {
+                        (tag1_name.clone(), tag2_name.clone())
+                    } else {
+                        (tag2_name.clone(), tag1_name.clone())
+                    };
+
+                    let score = tag1_mm + start_mm + end_mm + tag2_mm;
+                    if score < best_score {
+                        best_score = score;
+                        best = Some(PieceInfo {
+                            tag1: tn1,
+                            tag2: tn2,
+                            primer_name: key.clone(),
+                            between,
+                        });
+                        tied = false;
+                    } else if score == best_score {
+                        tied = true;
+                    }
+                }
+            }
+        }
+    }
+
+    if tied {
+        return None;
+    }
+    best
+}
+
 fn print_sorted_collapsed_counted_seqs(hap: &Hap) -> Result<()> {
     for (tag_comb, entry) in hap {
         let filename = format!("{}.txt", tag_comb);

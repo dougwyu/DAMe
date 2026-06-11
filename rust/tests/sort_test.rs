@@ -513,6 +513,81 @@ fn test_run_sort_produces_output_files() {
 }
 
 #[test]
+fn test_anchored_forward_tag_mismatch() {
+    use dame::sort::get_pieces_info_anchored;
+    let tags = make_test_tags();
+    let primers = make_test_primers();
+    let line = "AAAGACGTATATATTGCAGGGG";
+    assert!(get_pieces_info_anchored(line, &primers, &tags, false, 0, 0).is_none());
+    let info = get_pieces_info_anchored(line, &primers, &tags, false, 0, 1).unwrap();
+    assert_eq!(info.tag1, "Tag1");
+    assert_eq!(info.tag2, "Tag2");
+    assert_eq!(info.between, "ATATAT");
+    assert_eq!(info.primer_name, "CO1");
+}
+
+#[test]
+fn test_anchored_primer_only_parity() {
+    use dame::sort::get_pieces_info_anchored;
+    let tags = make_test_tags();
+    let primers = make_test_primers();
+    let line = "AAAAACGAATATATTGCAGGGG";
+    assert!(get_pieces_info_anchored(line, &primers, &tags, false, 0, 0).is_none());
+    let info = get_pieces_info_anchored(line, &primers, &tags, false, 1, 0).unwrap();
+    assert_eq!(info.tag1, "Tag1");
+    assert_eq!(info.tag2, "Tag2");
+    assert_eq!(info.between, "ATATAT");
+}
+
+#[test]
+fn test_anchored_combined_primer_and_tag_mismatch() {
+    use dame::sort::get_pieces_info_anchored;
+    let tags = make_test_tags();
+    let primers = make_test_primers();
+    let line = "AAAGACGAATATATTGCAGGGG";
+    assert!(get_pieces_info_anchored(line, &primers, &tags, false, 0, 1).is_none());
+    assert!(get_pieces_info_anchored(line, &primers, &tags, false, 1, 0).is_none());
+    let info = get_pieces_info_anchored(line, &primers, &tags, false, 1, 1).unwrap();
+    assert_eq!(info.tag1, "Tag1");
+    assert_eq!(info.tag2, "Tag2");
+    assert_eq!(info.between, "ATATAT");
+}
+
+#[test]
+fn test_anchored_reverse_orientation_tag_mismatch() {
+    use dame::sort::{get_pieces_info_anchored, read_tags, read_primers};
+    let dir = tempdir().unwrap();
+    let tf = dir.path().join("t.txt");
+    std::fs::write(&tf, "AAAA\tTag1\nCCCC\tTag2\nGGGG\tTag3\nTTTT\tTag4\n").unwrap();
+    let pf = dir.path().join("p.txt");
+    std::fs::write(&pf, "CO1\tAAAG\tCCGT\n").unwrap();
+    let tags = read_tags(tf.to_str().unwrap()).unwrap();
+    let primers = read_primers(pf.to_str().unwrap()).unwrap();
+    let line = "CCCCCCGAGGGGGGCTTTTTTA";
+    assert!(get_pieces_info_anchored(line, &primers, &tags, false, 0, 0).is_none());
+    let info = get_pieces_info_anchored(line, &primers, &tags, false, 1, 1).unwrap();
+    assert_eq!(info.tag1, "Tag1");
+    assert_eq!(info.tag2, "Tag2");
+    assert_eq!(info.between, "CCCCCC");
+    assert_eq!(info.primer_name, "CO1");
+}
+
+#[test]
+fn test_anchored_ambiguous_tag_is_discarded() {
+    use dame::sort::{get_pieces_info_anchored, read_tags, read_primers};
+    let dir = tempdir().unwrap();
+    let tf = dir.path().join("t.txt");
+    std::fs::write(&tf, "AAAA\tTagA\nAATT\tTagB\nGGGG\tTagR\n").unwrap();
+    let pf = dir.path().join("p.txt");
+    std::fs::write(&pf, "CO1\tACGT\tTGCA\n").unwrap();
+    let tags = read_tags(tf.to_str().unwrap()).unwrap();
+    let primers = read_primers(pf.to_str().unwrap()).unwrap();
+    let line = "AAATACGTATATATTGCACCCC";
+    let res = get_pieces_info_anchored(line, &primers, &tags, false, 0, 1);
+    assert!(res.is_none(), "equidistant tag1 candidates must be discarded as ambiguous");
+}
+
+#[test]
 fn test_get_pieces_info_no_panic_on_inverted_primers() {
     // Both primers present but in wrong order: TGCA then ACGT
     // Without the guard, prim_ini_prim > prim_fin_prim and &line[a..b] panics.
