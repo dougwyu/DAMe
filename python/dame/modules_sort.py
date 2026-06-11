@@ -1,12 +1,44 @@
-import re
-import os
-import sys
-
 
 def RC(seq):
     seq = seq[::-1]
     transtab = str.maketrans('ACGTMRWSYKVHDB', 'TGCAKYWSRMBDHV')
     return seq.translate(transtab)
+
+
+_IUPAC = {
+    'A': frozenset('A'), 'C': frozenset('C'), 'G': frozenset('G'),
+    'T': frozenset('T'), 'R': frozenset('AG'), 'Y': frozenset('CT'),
+    'S': frozenset('CG'), 'W': frozenset('AT'), 'K': frozenset('GT'),
+    'M': frozenset('AC'), 'B': frozenset('CGT'), 'D': frozenset('AGT'),
+    'H': frozenset('ACT'), 'V': frozenset('ACG'), 'N': frozenset('ACGT'),
+}
+
+
+def iupac_matches(primer_base, read_base):
+    """True if read_base (A/C/G/T) satisfies the primer's IUPAC code."""
+    allowed = _IUPAC.get(primer_base)
+    return allowed is not None and read_base in allowed
+
+
+def find_primer(primer, seq, max_mismatches=0):
+    """Leftmost window in seq matching primer with <= max_mismatches
+    substitutions (IUPAC-aware). Returns (start, end) or None."""
+    plen = len(primer)
+    slen = len(seq)
+    if plen > slen:
+        return None
+    for i in range(slen - plen + 1):
+        mismatches = 0
+        ok = True
+        for p, s in zip(primer, seq[i:i + plen]):
+            if not iupac_matches(p, s):
+                mismatches += 1
+                if mismatches > max_mismatches:
+                    ok = False
+                    break
+        if ok:
+            return (i, i + plen)
+    return None
 
 
 def readTags(tags, TAGS):
@@ -22,7 +54,7 @@ def readTags(tags, TAGS):
     return TAGS
 
 
-def readPrimers(primers, PRIMERS, AMBIG):
+def readPrimers(primers, PRIMERS):
     with open(primers) as f:
         for line in f:
             line = line.rstrip().split()
@@ -30,15 +62,10 @@ def readPrimers(primers, PRIMERS, AMBIG):
                 continue
             if line[0] not in PRIMERS:
                 PRIMERS[line[0]] = [[], []]
-            Frc = RC(line[1])
-            Rrc = RC(line[2])
             F = line[1]
             R = line[2]
-            for key in AMBIG:
-                Frc = re.sub(key, AMBIG[key], Frc)
-                Rrc = re.sub(key, AMBIG[key], Rrc)
-                F = re.sub(key, AMBIG[key], F)
-                R = re.sub(key, AMBIG[key], R)
+            Frc = RC(F)
+            Rrc = RC(R)
             PRIMERS[line[0]][0].append(F)
             PRIMERS[line[0]][0].append(R)
             PRIMERS[line[0]][1].append(Frc)
@@ -46,24 +73,25 @@ def readPrimers(primers, PRIMERS, AMBIG):
     return PRIMERS
 
 
-def GetPiecesInfo(line, PRIMERS, TAGS, keepPrimersSeq):
+def GetPiecesInfo(line, PRIMERS, TAGS, keepPrimersSeq, maxMismatches=0):
     for key in PRIMERS:
-        primIniPos = [(m.start(0), m.end(0)) for m in re.finditer(PRIMERS[key][0][0], line)]
-        if len(primIniPos) > 0:
+        # Forward orientation: F at start, RC(R) at end
+        primIni = find_primer(PRIMERS[key][0][0], line, maxMismatches)
+        if primIni is not None:
             if keepPrimersSeq:
-                primIniPosPrim = primIniPos[0][0]
-                primIniPosTags = primIniPos[0][0]
+                primIniPosPrim = primIni[0]
+                primIniPosTags = primIni[0]
             else:
-                primIniPosPrim = primIniPos[0][1]
-                primIniPosTags = primIniPos[0][0]
-            primFinPos = [(m.start(0), m.end(0)) for m in re.finditer(PRIMERS[key][1][1], line)]
-            if len(primFinPos) > 0:
+                primIniPosPrim = primIni[1]
+                primIniPosTags = primIni[0]
+            primFin = find_primer(PRIMERS[key][1][1], line, maxMismatches)
+            if primFin is not None:
                 if keepPrimersSeq:
-                    primFinPosPrim = primFinPos[0][1]
-                    primFinPosTags = primFinPos[0][1]
+                    primFinPosPrim = primFin[1]
+                    primFinPosTags = primFin[1]
                 else:
-                    primFinPosPrim = primFinPos[0][0]
-                    primFinPosTags = primFinPos[0][1]
+                    primFinPosPrim = primFin[0]
+                    primFinPosTags = primFin[1]
                 PrimerName = key
                 between = line[primIniPosPrim:primFinPosPrim]
                 if len(between) == 0:
@@ -77,22 +105,23 @@ def GetPiecesInfo(line, PRIMERS, TAGS, keepPrimersSeq):
                 return [1]
             return [1]
         else:
-            primIniPos = [(m.start(0), m.end(0)) for m in re.finditer(PRIMERS[key][0][1], line)]
-            if len(primIniPos) > 0:
+            # Reverse orientation: R at start, RC(F) at end
+            primIni = find_primer(PRIMERS[key][0][1], line, maxMismatches)
+            if primIni is not None:
                 if keepPrimersSeq:
-                    primIniPosPrim = primIniPos[0][0]
-                    primIniPosTags = primIniPos[0][0]
+                    primIniPosPrim = primIni[0]
+                    primIniPosTags = primIni[0]
                 else:
-                    primIniPosPrim = primIniPos[0][1]
-                    primIniPosTags = primIniPos[0][0]
-                primFinPos = [(m.start(0), m.end(0)) for m in re.finditer(PRIMERS[key][1][0], line)]
-                if len(primFinPos) > 0:
+                    primIniPosPrim = primIni[1]
+                    primIniPosTags = primIni[0]
+                primFin = find_primer(PRIMERS[key][1][0], line, maxMismatches)
+                if primFin is not None:
                     if keepPrimersSeq:
-                        primFinPosPrim = primFinPos[0][1]
-                        primFinPosTags = primFinPos[0][1]
+                        primFinPosPrim = primFin[1]
+                        primFinPosTags = primFin[1]
                     else:
-                        primFinPosPrim = primFinPos[0][0]
-                        primFinPosTags = primFinPos[0][1]
+                        primFinPosPrim = primFin[0]
+                        primFinPosTags = primFin[1]
                     PrimerName = key
                     between = line[primIniPosPrim:primFinPosPrim]
                     if len(between) == 0:

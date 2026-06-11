@@ -378,9 +378,11 @@ All steps above work identically with `dame-py`. The flag names differ slightly:
 ```bash
 # dame (Rust)
 dame sort --fq Pool1.fastq --primers Primers.txt --tags Tags.txt
+dame sort --fq Pool1.fastq --primers Primers.txt --tags Tags.txt --primer-mismatches 1
 
 # dame-py (Python)
 dame-py sort -fq Pool1.fastq -p Primers.txt -t Tags.txt
+dame-py sort -fq Pool1.fastq -p Primers.txt -t Tags.txt -m 1
 ```
 
 ### Filter
@@ -431,6 +433,13 @@ Each `tagA_tagB.txt` file has five tab-separated columns:
 
 The sequence is what lies **between** the forward and reverse primers. Tags and primers
 are stripped unless `--keep-primers-seq` is passed to `dame sort`.
+
+### Sort Options
+
+| Flag (Rust) | Flag (Python) | Meaning | Default |
+|---|---|---|---|
+| `--keep-primers-seq` | `--keepPrimersSeq` | Retain primer sequences in output instead of stripping them | off |
+| `--primer-mismatches N` | `-m N` | Allow up to N substitutions per primer match (IUPAC-aware). Tags are always matched exactly. | 0 |
 
 ### What Sort Does Not Output
 

@@ -72,6 +72,8 @@ jobs:
         run: echo "$GITHUB_WORKSPACE/rust/target/release" >> $GITHUB_PATH
       - name: Run sort integration test
         run: bash tests/integration/run_sort.sh
+      - name: Run sort mismatch integration test
+        run: bash tests/integration/run_sort_mismatch.sh
       - name: Run rsi integration test
         run: bash tests/integration/run_rsi.sh
       - name: Run decollapse integration test

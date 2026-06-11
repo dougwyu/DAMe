@@ -132,31 +132,25 @@ fn test_iupac_matches_non_acgt_read_byte() {
 #[test]
 fn test_find_primer_exact() {
     use dame::sort::find_primer;
-    // primer ACGT in XXXXACGTXXXX — should find at position 4
     let seq = b"XXXXACGTXXXX";
     let primer = b"ACGT";
-    let result = find_primer(primer, seq);
-    assert_eq!(result, Some((4, 8)));
+    assert_eq!(find_primer(primer, seq, 0), Some((4, 8)));
 }
 
 #[test]
 fn test_find_primer_iupac() {
     use dame::sort::find_primer;
-    // primer with R (= A or G): GCRTGC matches GCATGC
     let seq = b"TTTTGCATGCTTTT";
     let primer = b"GCRTGC";
-    let result = find_primer(primer, seq);
-    assert_eq!(result, Some((4, 10)));
+    assert_eq!(find_primer(primer, seq, 0), Some((4, 10)));
 }
 
 #[test]
 fn test_find_primer_iupac_second_option() {
     use dame::sort::find_primer;
-    // primer GCRTGC also matches GCGTGC (R = G)
     let seq = b"TTTTGCGTGCTTTT";
     let primer = b"GCRTGC";
-    let result = find_primer(primer, seq);
-    assert_eq!(result, Some((4, 10)));
+    assert_eq!(find_primer(primer, seq, 0), Some((4, 10)));
 }
 
 #[test]
@@ -164,17 +158,15 @@ fn test_find_primer_not_found() {
     use dame::sort::find_primer;
     let seq = b"AAAAAAAAAA";
     let primer = b"GCATGC";
-    assert_eq!(find_primer(primer, seq), None);
+    assert_eq!(find_primer(primer, seq, 0), None);
 }
 
 #[test]
 fn test_find_primer_leftmost() {
     use dame::sort::find_primer;
-    // primer appears twice — must return leftmost
     let seq = b"ACGTXXXXACGT";
     let primer = b"ACGT";
-    let result = find_primer(primer, seq);
-    assert_eq!(result, Some((0, 4)));
+    assert_eq!(find_primer(primer, seq, 0), Some((0, 4)));
 }
 
 #[test]
@@ -182,7 +174,48 @@ fn test_find_primer_primer_longer_than_seq() {
     use dame::sort::find_primer;
     let seq = b"AC";
     let primer = b"ACGT";
-    assert_eq!(find_primer(primer, seq), None);
+    assert_eq!(find_primer(primer, seq, 0), None);
+}
+
+#[test]
+fn test_find_primer_one_mismatch_found() {
+    use dame::sort::find_primer;
+    // ACGA differs from primer ACGT at the last base; N=1 accepts it.
+    let seq = b"XXXXACGAXXXX";
+    let primer = b"ACGT";
+    assert_eq!(find_primer(primer, seq, 0), None);
+    assert_eq!(find_primer(primer, seq, 1), Some((4, 8)));
+}
+
+#[test]
+fn test_find_primer_two_mismatches_rejected_at_one() {
+    use dame::sort::find_primer;
+    // AAGA differs from ACGT at two positions; N=1 rejects, N=2 accepts.
+    let seq = b"XXXXAAGAXXXX";
+    let primer = b"ACGT";
+    assert_eq!(find_primer(primer, seq, 1), None);
+    assert_eq!(find_primer(primer, seq, 2), Some((4, 8)));
+}
+
+#[test]
+fn test_find_primer_iupac_plus_mismatch() {
+    use dame::sort::find_primer;
+    // GCRTGC: R matches A or G (0 cost). Read GCATGA differs only at last base.
+    let seq = b"TTTTGCATGATTTT";
+    let primer = b"GCRTGC";
+    assert_eq!(find_primer(primer, seq, 0), None);
+    assert_eq!(find_primer(primer, seq, 1), Some((4, 10)));
+}
+
+#[test]
+fn test_find_primer_leftmost_within_budget() {
+    use dame::sort::find_primer;
+    // GCTTGC (1 mismatch) sits before an exact GCATGC. Leftmost-within-budget
+    // returns the earlier near-match, NOT the later exact match.
+    // index: T0 T1 G2 C3 T4 T5 G6 C7 A8 T9 G10 C11
+    let seq = b"TTGCTTGCATGC";
+    let primer = b"GCATGC";
+    assert_eq!(find_primer(primer, seq, 1), Some((2, 8)));
 }
 
 // ── read_tags ─────────────────────────────────────────────────────────────────
@@ -286,7 +319,7 @@ fn test_get_pieces_info_forward_read() {
     let tags = make_test_tags();
     let primers = make_test_primers();
     let line = "AAAAACGTATATATTGCAGGGG";
-    let info = get_pieces_info(line, &primers, &tags, false);
+    let info = get_pieces_info(line, &primers, &tags, false, 0);
     assert!(info.is_some(), "Expected Some(PieceInfo) for a valid forward read");
     let info = info.unwrap();
     assert_eq!(info.tag1, "Tag1");
@@ -296,11 +329,62 @@ fn test_get_pieces_info_forward_read() {
 }
 
 #[test]
+fn test_get_pieces_info_forward_read_with_one_mismatch() {
+    // Same as the forward-read test, but the forward primer ACGT is miscalled
+    // as ACGA. At N=0 the read is rejected; at N=1 it sorts to Tag1_Tag2.
+    let tags = make_test_tags();
+    let primers = make_test_primers();
+    let line = "AAAAACGAATATATTGCAGGGG"; // primer region ACGA (was ACGT)
+    assert!(get_pieces_info(line, &primers, &tags, false, 0).is_none());
+    let info = get_pieces_info(line, &primers, &tags, false, 1).unwrap();
+    assert_eq!(info.tag1, "Tag1");
+    assert_eq!(info.tag2, "Tag2");
+    assert_eq!(info.between, "ATATAT");
+    assert_eq!(info.primer_name, "CO1");
+}
+
+#[test]
+fn test_get_pieces_info_end_primer_mismatch() {
+    // Forward orientation, mismatch in the END primer RC(R)=TGCA (miscalled TGCT).
+    // Forward primer ACGT is exact. At N=0 rejected; at N=1 recovered.
+    let tags = make_test_tags();
+    let primers = make_test_primers();
+    let line = "AAAAACGTATATATTGCTGGGG";
+    assert!(get_pieces_info(line, &primers, &tags, false, 0).is_none());
+    let info = get_pieces_info(line, &primers, &tags, false, 1).unwrap();
+    assert_eq!(info.tag1, "Tag1");
+    assert_eq!(info.tag2, "Tag2");
+    assert_eq!(info.between, "ATATAT");
+    assert_eq!(info.primer_name, "CO1");
+}
+
+#[test]
+fn test_get_pieces_info_reverse_orientation_mismatch() {
+    // Reverse-orientation read with non-palindromic primers F=AAAG, R=CCGT.
+    // Start primer R=CCGT is miscalled CCGA (1 mismatch); end primer RC(F)=CTTT exact.
+    // Forward primer AAAG never appears, so the reverse branch is taken.
+    let dir = tempdir().unwrap();
+    let tag_file = dir.path().join("tags.txt");
+    std::fs::write(&tag_file, "AAAA\tTag1\nCCCC\tTag2\nGGGG\tTag3\nTTTT\tTag4\n").unwrap();
+    let prim_file = dir.path().join("primers.txt");
+    std::fs::write(&prim_file, "CO1\tAAAG\tCCGT\n").unwrap();
+    let tags = read_tags(tag_file.to_str().unwrap()).unwrap();
+    let primers = read_primers(prim_file.to_str().unwrap()).unwrap();
+    let line = "CCCCCCGAGGGGGGCTTTTTTT";
+    assert!(get_pieces_info(line, &primers, &tags, false, 0).is_none());
+    let info = get_pieces_info(line, &primers, &tags, false, 1).unwrap();
+    assert_eq!(info.tag1, "Tag1");
+    assert_eq!(info.tag2, "Tag2");
+    assert_eq!(info.between, "CCCCCC");
+    assert_eq!(info.primer_name, "CO1");
+}
+
+#[test]
 fn test_get_pieces_info_error_read() {
     let tags = make_test_tags();
     let primers = make_test_primers();
     let line = "NNNNNNNNNNNNNNNNNNNN";
-    let info = get_pieces_info(line, &primers, &tags, false);
+    let info = get_pieces_info(line, &primers, &tags, false, 0);
     assert!(info.is_none(), "Expected None for an error/ambiguous read");
 }
 
@@ -327,6 +411,7 @@ fn test_run_sort_produces_output_files() {
         primers: primers.to_str().unwrap().to_string(),
         tags: tags.to_str().unwrap().to_string(),
         keep_primers_seq: false,
+        primer_mismatches: 0,
     });
 
     // Restore cwd regardless of outcome
@@ -392,7 +477,7 @@ fn test_get_pieces_info_no_panic_on_inverted_primers() {
     // In forward branch: finds ACGT at pos 8, then RC(R)=TGCA would match at pos 4 (before start)
     // → prim_ini_prim=12 > prim_fin_prim=4 → guard triggers → returns None, no panic
     let bad_read = "AAAATGCAACGTCCCC"; // TGCA at [4,8), ACGT at [8,12) — end primer before start
-    let result = get_pieces_info(bad_read, &primers, &tags, false);
+    let result = get_pieces_info(bad_read, &primers, &tags, false, 0);
     // Guard should return None, not panic
     assert!(result.is_none());
 }
