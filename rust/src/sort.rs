@@ -17,6 +17,8 @@ pub struct SortArgs {
     pub keep_primers_seq: bool,
     #[arg(short = 'm', long = "primer-mismatches", default_value = "0")]
     pub primer_mismatches: usize,
+    #[arg(long = "tag-mismatches", default_value = "0")]
+    pub tag_mismatches: usize,
 }
 
 /// Reverse complement of a DNA sequence.
@@ -206,6 +208,27 @@ pub fn read_tags(path: &str) -> Result<TagLookup> {
     }
 
     Ok(TagLookup { by_fwd, by_rc, fwd_list, rc_list })
+}
+
+/// Minimum pairwise Hamming distance among equal-length forward tag sequences.
+/// Returns None if no two tags share a length.
+pub fn min_equal_length_tag_distance(tags: &TagLookup) -> Option<usize> {
+    let seqs: Vec<&Vec<u8>> = tags.fwd_list.iter().map(|(s, _)| s).collect();
+    let mut best: Option<usize> = None;
+    for i in 0..seqs.len() {
+        for j in (i + 1)..seqs.len() {
+            if seqs[i].len() != seqs[j].len() {
+                continue;
+            }
+            let d = seqs[i]
+                .iter()
+                .zip(seqs[j].iter())
+                .filter(|(a, b)| a != b)
+                .count();
+            best = Some(best.map_or(d, |b| b.min(d)));
+        }
+    }
+    best
 }
 
 /// Read a Primers file (Name\tFwdSeq\tRevSeq per line).
@@ -522,6 +545,21 @@ fn print_summary_file(hap: &Hap) -> Result<()> {
 pub fn run(args: SortArgs) -> Result<()> {
     let tags = read_tags(&args.tags)?;
     let primers = read_primers(&args.primers)?;
+
+    if args.tag_mismatches > 0 {
+        if let Some(min_d) = min_equal_length_tag_distance(&tags) {
+            if 2 * args.tag_mismatches + 1 > min_d {
+                let safe = min_d.saturating_sub(1) / 2;
+                eprintln!(
+                    "WARNING: --tag-mismatches {} may misassign reads: minimum tag \
+                     Hamming distance is {}, so the safe maximum is {}.",
+                    args.tag_mismatches, min_d, safe
+                );
+            }
+        }
+    }
+    let use_anchored = args.primer_mismatches > 0 || args.tag_mismatches > 0;
+
     let mut hap: Hap = IndexMap::new();
     let mut count_errors: u32 = 0;
 
@@ -536,7 +574,19 @@ pub fn run(args: SortArgs) -> Result<()> {
         if seq.is_empty() {
             continue;
         }
-        match get_pieces_info(seq, &primers, &tags, args.keep_primers_seq, args.primer_mismatches) {
+        let info = if use_anchored {
+            get_pieces_info_anchored(
+                seq,
+                &primers,
+                &tags,
+                args.keep_primers_seq,
+                args.primer_mismatches,
+                args.tag_mismatches,
+            )
+        } else {
+            get_pieces_info(seq, &primers, &tags, args.keep_primers_seq, args.primer_mismatches)
+        };
+        match info {
             Some(info) => {
                 fill_hap(&mut hap, &info.tag1, &info.tag2, &info.primer_name, &info.between);
             }

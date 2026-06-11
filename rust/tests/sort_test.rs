@@ -463,6 +463,7 @@ fn test_run_sort_produces_output_files() {
         tags: tags.to_str().unwrap().to_string(),
         keep_primers_seq: false,
         primer_mismatches: 0,
+        tag_mismatches: 0,
     });
 
     // Restore cwd regardless of outcome
@@ -570,6 +571,22 @@ fn test_anchored_reverse_orientation_tag_mismatch() {
     assert_eq!(info.tag2, "Tag2");
     assert_eq!(info.between, "CCCCCC");
     assert_eq!(info.primer_name, "CO1");
+}
+
+#[test]
+fn test_min_equal_length_tag_distance() {
+    use dame::sort::{min_equal_length_tag_distance, read_tags};
+    let dir = tempdir().unwrap();
+    let tf = dir.path().join("t.txt");
+    // AAAA vs AATT = 2; AAAA vs AAAT = 1; AATT vs AAAT = 1 -> min 1
+    std::fs::write(&tf, "AAAA\tT1\nAATT\tT2\nAAAT\tT3\n").unwrap();
+    let tags = read_tags(tf.to_str().unwrap()).unwrap();
+    assert_eq!(min_equal_length_tag_distance(&tags), Some(1));
+
+    let tf2 = dir.path().join("t2.txt");
+    std::fs::write(&tf2, "AAAA\tT1\n").unwrap();
+    let tags2 = read_tags(tf2.to_str().unwrap()).unwrap();
+    assert_eq!(min_equal_length_tag_distance(&tags2), None);
 }
 
 #[test]
