@@ -2,6 +2,7 @@ from dame.modules_sort import (
     readTags, readPrimers, GetPiecesInfo, FillHAP,
     PrintSortedCollapsedCountedSeqs, PrintSummaryFile,
 )
+from dame.utils import smart_open
 
 def register_subcommand(subparsers):
     p = subparsers.add_parser(
@@ -30,7 +31,7 @@ def run(args):
     TAGS = readTags(args.t, TAGS)
     PRIMERS = readPrimers(args.p, PRIMERS)
 
-    with open(args.fq) as f:
+    with smart_open(args.fq) as f:
         line = f.readline()  # header line
         while line:
             line = f.readline().rstrip()  # seq line
