@@ -1,7 +1,10 @@
 import pytest
 import tempfile
 import os
-from dame.modules_sort import RC, readTags, readPrimers, FillHAP, GetPiecesInfo, iupac_matches, find_primer
+from dame.modules_sort import (
+    RC, readTags, readPrimers, FillHAP, GetPiecesInfo, iupac_matches, find_primer,
+    hamming_iupac, GetPiecesInfoMismatch, min_equal_length_tag_distance,
+)
 
 
 def test_RC_palindrome():
@@ -182,3 +185,67 @@ def test_GetPiecesInfo_lowercase_read(tmp_path):
     assert info[1] == "Tag2"
     assert info[2] == "CO1"
     assert info[3] == "ATATAT"
+
+
+def test_hamming_iupac():
+    assert hamming_iupac("ACGT", "ACGT") == 0
+    assert hamming_iupac("ACGT", "ACGA") == 1
+    assert hamming_iupac("GCRTGC", "GCATGC") == 0   # R matches A
+    assert hamming_iupac("GCRTGC", "GCCTGC") == 1
+    # length mismatch -> sentinel greater than any real budget
+    assert hamming_iupac("ACGT", "ACG") > 3
+
+
+def test_min_equal_length_tag_distance():
+    assert min_equal_length_tag_distance({"T1": ["AAAA", "TTTT"],
+                                          "T2": ["AATT", "AATT"],
+                                          "T3": ["AAAT", "ATTT"]}) == 1
+    assert min_equal_length_tag_distance({"T1": ["AAAA", "TTTT"]}) is None
+
+
+def test_anchored_forward_tag_mismatch(tmp_path):
+    PRIMERS, TAGS = _mismatch_fixtures(tmp_path)
+    line = "AAAGACGTATATATTGCAGGGG"  # tag1 AAAA->AAAG
+    assert GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 0, 0) == [1]
+    info = GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 0, 1)
+    assert info == ["Tag1", "Tag2", "CO1", "ATATAT"]
+
+
+def test_anchored_primer_only_parity(tmp_path):
+    PRIMERS, TAGS = _mismatch_fixtures(tmp_path)
+    line = "AAAAACGAATATATTGCAGGGG"  # primer ACGT->ACGA
+    assert GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 0, 0) == [1]
+    info = GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 1, 0)
+    assert info == ["Tag1", "Tag2", "CO1", "ATATAT"]
+
+
+def test_anchored_combined(tmp_path):
+    PRIMERS, TAGS = _mismatch_fixtures(tmp_path)
+    line = "AAAGACGAATATATTGCAGGGG"  # tag1 and primer each 1 off
+    assert GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 0, 1) == [1]
+    assert GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 1, 0) == [1]
+    assert GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 1, 1) == ["Tag1", "Tag2", "CO1", "ATATAT"]
+
+
+def test_anchored_reverse_orientation_tag_mismatch(tmp_path):
+    tags_file = tmp_path / "t.txt"
+    tags_file.write_text("AAAA\tTag1\nCCCC\tTag2\nGGGG\tTag3\nTTTT\tTag4\n")
+    primers_file = tmp_path / "p.txt"
+    primers_file.write_text("CO1\tAAAG\tCCGT\n")
+    TAGS = readTags(str(tags_file), {})
+    PRIMERS = readPrimers(str(primers_file), {})
+    line = "CCCCCCGAGGGGGGCTTTTTTA"  # trailing tag TTTT->TTTA
+    assert GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 0, 0) == [1]
+    info = GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 1, 1)
+    assert info == ["Tag1", "Tag2", "CO1", "CCCCCC"]
+
+
+def test_anchored_ambiguous_tag_is_discarded(tmp_path):
+    tags_file = tmp_path / "t.txt"
+    tags_file.write_text("AAAA\tTagA\nAATT\tTagB\nGGGG\tTagR\n")
+    primers_file = tmp_path / "p.txt"
+    primers_file.write_text("CO1\tACGT\tTGCA\n")
+    TAGS = readTags(str(tags_file), {})
+    PRIMERS = readPrimers(str(primers_file), {})
+    line = "AAATACGTATATATTGCACCCC"  # AAAT is Hamming-1 from both AAAA and AATT
+    assert GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 0, 1) == [1]
