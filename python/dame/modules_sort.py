@@ -74,6 +74,8 @@ def readPrimers(primers, PRIMERS):
 
 
 def GetPiecesInfo(line, PRIMERS, TAGS, keepPrimersSeq, maxMismatches=0):
+    # Normalise soft-masked / lowercase bases so they are not silently dropped.
+    line = line.upper()
     for key in PRIMERS:
         # Forward orientation: F at start, RC(R) at end
         primIni = find_primer(PRIMERS[key][0][0], line, maxMismatches)

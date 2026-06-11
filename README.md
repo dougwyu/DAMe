@@ -76,13 +76,18 @@ parsing-bound).  Larger tag panels should benefit more.
 
 ### Python version
 
+`dame-py` accepts both the `--long` flags shown below (matching the Rust
+binary) and the original single-dash forms (`-fq`, `-p`, `-t`, `-psInfo`,
+`-x`, …) for backward compatibility.
+
 ```bash
 pip install -e python/
 
 dame-py sort \
   --fq Pool1.fastq \
   --primers Primers.txt \
-  --tags Tags.txt
+  --tags Tags.txt \
+  --primer-mismatches 1
 
 dame-py filter \
   --ps-info PSinfo.txt \

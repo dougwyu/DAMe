@@ -72,7 +72,10 @@ def MakeComparisonFile(X, seqsALL, haps, F, R, counts, seqs,
                        OUT, OUTthresh, OUTYX, OUT_fas, OUTthresh_fas,
                        OUTYX_fas, OUTthreshLen_fas, Y, T, L, sampleName, i):
     idnum = 1
-    for seq in seqsALL:
+    # Sort for deterministic output (and to match the Rust implementation's
+    # ordering): a Python set iterates in hash-seed-dependent order, which makes
+    # line order and the per-sequence _N ids non-reproducible run to run.
+    for seq in sorted(seqsALL):
         line = sampleName[i] + "\t"
         lineFasIDs = ">" + sampleName[i] + "\t"
         lineFasCounts = "\t"

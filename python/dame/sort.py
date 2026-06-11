@@ -1,6 +1,3 @@
-import argparse
-import sys
-
 from dame.modules_sort import (
     readTags, readPrimers, GetPiecesInfo, FillHAP,
     PrintSortedCollapsedCountedSeqs, PrintSummaryFile,
@@ -11,12 +8,13 @@ def register_subcommand(subparsers):
         "sort",
         description="Sort amplicon sequences tagged on each end by tag combination",
     )
-    p.add_argument("-fq", required=True, help="Input fastq with amplicon sequences")
-    p.add_argument("-p", required=True,
+    p.add_argument("-fq", "--fq", dest="fq", required=True,
+                   help="Input fastq with amplicon sequences")
+    p.add_argument("-p", "--primers", dest="p", required=True,
                    help="Input text file with primer name and sequences [Format: Name\\tForwardSeq\\tReverseSeq]")
-    p.add_argument("-t", required=True,
+    p.add_argument("-t", "--tags", dest="t", required=True,
                    help="Input text file with tag names and sequences [Format: TagSeq\\tTagName]")
-    p.add_argument("--keepPrimersSeq", action="store_true",
+    p.add_argument("--keepPrimersSeq", "--keep-primers-seq", dest="keepPrimersSeq", action="store_true",
                    help="Keep primer sequences instead of trimming them [default not set]")
     p.add_argument("-m", "--primer-mismatches", dest="primer_mismatches", type=int, default=0,
                    help="Max substitutions allowed per primer match [default 0]")
@@ -54,19 +52,3 @@ def run(args):
     PrintSummaryFile(HAP)
     print(f"Number of erroneous sequences (with errors in the sequence of primer or tags, "
           f"or no barcode amplified): {CountErrors}")
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Sort amplicon sequences tagged on each end by tag combination"
-    )
-    parser.add_argument("-fq", required=True)
-    parser.add_argument("-p", required=True)
-    parser.add_argument("-t", required=True)
-    parser.add_argument("--keepPrimersSeq", action="store_true")
-    parser.add_argument("-m", "--primer-mismatches", dest="primer_mismatches", type=int, default=0)
-    run(parser.parse_args())
-
-
-if __name__ == "__main__":
-    main()

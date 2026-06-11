@@ -27,6 +27,9 @@ fn process<R: BufRead, W: Write>(reader: R, mut writer: W) -> Result<()> {
         }
         let fields: Vec<&str> = line.split('\t').collect();
         // Columns: PrimerName, Tag1, Tag2, Frequency, Sequence
+        if fields.len() < 5 {
+            continue;
+        }
         let tag1 = fields[1];
         let tag2 = fields[2];
         let freq: u64 = fields[3].parse()?;
