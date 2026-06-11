@@ -1,4 +1,3 @@
-import argparse
 from dame.modules_chimera_check import (
     makeTagFiles, makeTagFilesWithPools, MakeSizeOutFastas,
     SortFasta, MakeFasSeqOneLine, MakeNoChimHaps,
@@ -31,17 +30,3 @@ def run(args):
     SortFasta(P)
     MakeFasSeqOneLine(P)
     MakeNoChimHaps(P)
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Create necessary files to operate on sequences per PCR reaction"
-    )
-    parser.add_argument("-psInfo", required=True)
-    parser.add_argument("-x", required=True, type=int)
-    parser.add_argument("-p", type=int, default=1)
-    run(parser.parse_args())
-
-
-if __name__ == "__main__":
-    main()

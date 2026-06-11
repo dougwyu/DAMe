@@ -1,6 +1,3 @@
-import argparse
-import sys
-
 from dame.modules_sort import (
     readTags, readPrimers, GetPiecesInfo, FillHAP,
     PrintSortedCollapsedCountedSeqs, PrintSummaryFile,
@@ -54,19 +51,3 @@ def run(args):
     PrintSummaryFile(HAP)
     print(f"Number of erroneous sequences (with errors in the sequence of primer or tags, "
           f"or no barcode amplified): {CountErrors}")
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Sort amplicon sequences tagged on each end by tag combination"
-    )
-    parser.add_argument("-fq", required=True)
-    parser.add_argument("-p", required=True)
-    parser.add_argument("-t", required=True)
-    parser.add_argument("--keepPrimersSeq", action="store_true")
-    parser.add_argument("-m", "--primer-mismatches", dest="primer_mismatches", type=int, default=0)
-    run(parser.parse_args())
-
-
-if __name__ == "__main__":
-    main()

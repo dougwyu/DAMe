@@ -388,6 +388,20 @@ fn test_get_pieces_info_error_read() {
     assert!(info.is_none(), "Expected None for an error/ambiguous read");
 }
 
+#[test]
+fn test_get_pieces_info_lowercase_read() {
+    // Soft-masked / lowercase reads are uppercased before matching, so they
+    // are recovered rather than silently dropped.
+    let tags = make_test_tags();
+    let primers = make_test_primers();
+    let line = "aaaaacgtatatattgcagggg";
+    let info = get_pieces_info(line, &primers, &tags, false, 0).unwrap();
+    assert_eq!(info.tag1, "Tag1");
+    assert_eq!(info.tag2, "Tag2");
+    assert_eq!(info.between, "ATATAT");
+    assert_eq!(info.primer_name, "CO1");
+}
+
 // ── run (integration) ─────────────────────────────────────────────────────────
 
 #[test]

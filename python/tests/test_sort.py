@@ -171,3 +171,14 @@ def test_GetPiecesInfo_reverse_orientation_mismatch(tmp_path):
     assert info[1] == "Tag2"
     assert info[2] == "CO1"
     assert info[3] == "CCCCCC"
+
+
+def test_GetPiecesInfo_lowercase_read(tmp_path):
+    PRIMERS, TAGS = _mismatch_fixtures(tmp_path)
+    # Soft-masked / lowercase reads are uppercased before matching.
+    line = "aaaaacgtatatattgcagggg"
+    info = GetPiecesInfo(line, PRIMERS, TAGS, False, 0)
+    assert info[0] == "Tag1"
+    assert info[1] == "Tag2"
+    assert info[2] == "CO1"
+    assert info[3] == "ATATAT"

@@ -1,4 +1,3 @@
-import argparse
 from dame.modules_filter import (
     makePSnumFiles, ReadPSnumFiles, MakeSampleNameArray,
     ReadHapsForASample, getSeqsSetsAndFRcounts, MakeComparisonFile,
@@ -52,21 +51,3 @@ def run(args):
 
     for fh in [OUT, OUTYX, OUTthresh, OUT_fas, OUTYX_fas, OUTthresh_fas, OUTthreshLen_fas]:
         fh.close()
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Filter multiplexed sequences by PCR presence, abundance, and length"
-    )
-    parser.add_argument("-psInfo", required=True)
-    parser.add_argument("-x", type=int, default=2)
-    parser.add_argument("-y", type=int, default=1)
-    parser.add_argument("-p", type=int, default=1)
-    parser.add_argument("-t", type=int, default=1)
-    parser.add_argument("-l", type=int, default=100)
-    parser.add_argument("--chimeraChecked", action="store_true")
-    run(parser.parse_args())
-
-
-if __name__ == "__main__":
-    main()

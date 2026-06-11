@@ -254,6 +254,9 @@ pub fn get_pieces_info(
     keep_primers_seq: bool,
     max_mismatches: usize,
 ) -> Option<PieceInfo> {
+    // Normalise soft-masked / lowercase bases so they are not silently dropped.
+    let line_upper = line.to_ascii_uppercase();
+    let line = line_upper.as_str();
     let seq = line.as_bytes();
 
     for (key, primer) in primers {
