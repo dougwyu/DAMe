@@ -1,6 +1,8 @@
+import sys
+
 from dame.modules_sort import (
-    readTags, readPrimers, GetPiecesInfo, FillHAP,
-    PrintSortedCollapsedCountedSeqs, PrintSummaryFile,
+    readTags, readPrimers, GetPiecesInfo, GetPiecesInfoMismatch, FillHAP,
+    PrintSortedCollapsedCountedSeqs, PrintSummaryFile, min_equal_length_tag_distance,
 )
 from dame.utils import smart_open
 
@@ -19,6 +21,8 @@ def register_subcommand(subparsers):
                    help="Keep primer sequences instead of trimming them [default not set]")
     p.add_argument("-m", "--primer-mismatches", dest="primer_mismatches", type=int, default=0,
                    help="Max substitutions allowed per primer match [default 0]")
+    p.add_argument("-mt", "--tag-mismatches", dest="tag_mismatches", type=int, default=0,
+                   help="Max substitutions allowed per tag (tag1 and tag2 independently) [default 0]")
     p.set_defaults(func=run)
 
 
@@ -31,13 +35,26 @@ def run(args):
     TAGS = readTags(args.t, TAGS)
     PRIMERS = readPrimers(args.p, PRIMERS)
 
+    if args.tag_mismatches > 0:
+        min_d = min_equal_length_tag_distance(TAGS)
+        if min_d is not None and 2 * args.tag_mismatches + 1 > min_d:
+            safe = (min_d - 1) // 2
+            print(f"WARNING: --tag-mismatches {args.tag_mismatches} may misassign reads: "
+                  f"minimum tag Hamming distance is {min_d}, so the safe maximum is {safe}.",
+                  file=sys.stderr)
+    use_anchored = args.primer_mismatches > 0 or args.tag_mismatches > 0
+
     with smart_open(args.fq) as f:
         line = f.readline()  # header line
         while line:
             line = f.readline().rstrip()  # seq line
             if not line:
                 break
-            Info = GetPiecesInfo(line, PRIMERS, TAGS, args.keepPrimersSeq, args.primer_mismatches)
+            if use_anchored:
+                Info = GetPiecesInfoMismatch(line, PRIMERS, TAGS, args.keepPrimersSeq,
+                                             args.primer_mismatches, args.tag_mismatches)
+            else:
+                Info = GetPiecesInfo(line, PRIMERS, TAGS, args.keepPrimersSeq, args.primer_mismatches)
             if len(Info) == 1:
                 f.readline()  # "+" line
                 f.readline()  # qual line

@@ -74,6 +74,8 @@ jobs:
         run: bash tests/integration/run_sort.sh
       - name: Run sort mismatch integration test
         run: bash tests/integration/run_sort_mismatch.sh
+      - name: Run sort tag-mismatch integration test
+        run: bash tests/integration/run_sort_tag_mismatch.sh
       - name: Run rsi integration test
         run: bash tests/integration/run_rsi.sh
       - name: Run decollapse integration test

@@ -17,6 +17,8 @@ pub struct SortArgs {
     pub keep_primers_seq: bool,
     #[arg(short = 'm', long = "primer-mismatches", default_value = "0")]
     pub primer_mismatches: usize,
+    #[arg(long = "tag-mismatches", default_value = "0")]
+    pub tag_mismatches: usize,
 }
 
 /// Reverse complement of a DNA sequence.
@@ -93,6 +95,20 @@ pub fn iupac_matches(primer_byte: u8, read_byte: u8) -> bool {
     }
 }
 
+/// Count positions where `region` fails the IUPAC constraint of `pattern`.
+/// Returns `usize::MAX` when lengths differ, so an out-of-range region never
+/// satisfies any mismatch budget.
+pub fn hamming_iupac(pattern: &[u8], region: &[u8]) -> usize {
+    if pattern.len() != region.len() {
+        return usize::MAX;
+    }
+    pattern
+        .iter()
+        .zip(region)
+        .filter(|(&p, &r)| !iupac_matches(p, r))
+        .count()
+}
+
 /// Find the leftmost occurrence of `primer` in `seq` using IUPAC matching,
 /// tolerating up to `max_mismatches` substitutions (positions where the read
 /// base does not satisfy the primer's IUPAC code).
@@ -150,19 +166,26 @@ pub struct PieceInfo {
     pub between: String,
 }
 
-/// Pre-built O(1) reverse lookup for tag sequences.
-/// `by_fwd` maps forward tag bytes → tag name; `by_rc` maps RC tag bytes → tag name.
+/// Reverse lookups for tag sequences.
+/// `by_fwd`/`by_rc` are O(1) maps used by the exact path; `fwd_list`/`rc_list`
+/// are file-ordered, name-deduplicated lists iterated by the anchored matcher.
 pub struct TagLookup {
     pub by_fwd: HashMap<Vec<u8>, String>,
     pub by_rc: HashMap<Vec<u8>, String>,
+    pub fwd_list: Vec<(Vec<u8>, String)>,
+    pub rc_list: Vec<(Vec<u8>, String)>,
 }
 
-/// Read a Tags file (TagSeq\tTagName per line) and build O(1) reverse lookup maps.
+/// Read a Tags file (TagSeq\tTagName per line) and build O(1) reverse lookup maps
+/// plus file-ordered, name-deduplicated lists for the anchored matcher.
 pub fn read_tags(path: &str) -> Result<TagLookup> {
     let file = File::open(path).with_context(|| format!("Cannot open tags file: {path}"))?;
     let reader = BufReader::new(file);
     let mut by_fwd: HashMap<Vec<u8>, String> = HashMap::default();
     let mut by_rc: HashMap<Vec<u8>, String> = HashMap::default();
+    let mut fwd_list: Vec<(Vec<u8>, String)> = Vec::new();
+    let mut rc_list: Vec<(Vec<u8>, String)> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for line in reader.lines() {
         let line = line?;
@@ -178,9 +201,34 @@ pub fn read_tags(path: &str) -> Result<TagLookup> {
         let name = parts[1];
         by_fwd.insert(seq.as_bytes().to_vec(), name.to_string());
         by_rc.insert(rc(seq).as_bytes().to_vec(), name.to_string());
+        if seen.insert(name.to_string()) {
+            fwd_list.push((seq.as_bytes().to_vec(), name.to_string()));
+            rc_list.push((rc(seq).as_bytes().to_vec(), name.to_string()));
+        }
     }
 
-    Ok(TagLookup { by_fwd, by_rc })
+    Ok(TagLookup { by_fwd, by_rc, fwd_list, rc_list })
+}
+
+/// Minimum pairwise Hamming distance among equal-length forward tag sequences.
+/// Returns None if no two tags share a length.
+pub fn min_equal_length_tag_distance(tags: &TagLookup) -> Option<usize> {
+    let seqs: Vec<&Vec<u8>> = tags.fwd_list.iter().map(|(s, _)| s).collect();
+    let mut best: Option<usize> = None;
+    for i in 0..seqs.len() {
+        for j in (i + 1)..seqs.len() {
+            if seqs[i].len() != seqs[j].len() {
+                continue;
+            }
+            let d = seqs[i]
+                .iter()
+                .zip(seqs[j].iter())
+                .filter(|(a, b)| a != b)
+                .count();
+            best = Some(best.map_or(d, |b| b.min(d)));
+        }
+    }
+    best
 }
 
 /// Read a Primers file (Name\tFwdSeq\tRevSeq per line).
@@ -343,6 +391,117 @@ pub fn get_pieces_info(
     None
 }
 
+/// Anchored matcher used when primer or tag mismatches are allowed.
+/// Finds tag candidates at the read ends (IUPAC Hamming <= max_tag_mm), checks
+/// primers at the anchored offsets (<= max_primer_mm), scores each valid
+/// assembly by total mismatches, returns the unique minimum, and returns None
+/// when zero assemblies are valid or the minimum is tied (ambiguous).
+pub fn get_pieces_info_anchored(
+    line: &str,
+    primers: &IndexMap<String, PrimerEntry>,
+    tags: &TagLookup,
+    keep_primers_seq: bool,
+    max_primer_mm: usize,
+    max_tag_mm: usize,
+) -> Option<PieceInfo> {
+    let line_upper = line.to_ascii_uppercase();
+    let seq = line_upper.as_bytes();
+    let slen = seq.len();
+
+    let mut best: Option<PieceInfo> = None;
+    let mut best_score: usize = usize::MAX;
+    let mut tied = false;
+
+    for (key, primer) in primers {
+        for orientation in 0..2usize {
+            let (start_primer, end_primer) = if orientation == 0 {
+                (&primer.start_primers[0], &primer.end_primers[1])
+            } else {
+                (&primer.start_primers[1], &primer.end_primers[0])
+            };
+
+            for (tag1_seq, tag1_name) in &tags.fwd_list {
+                let t1l = tag1_seq.len();
+                if t1l + start_primer.len() > slen {
+                    continue;
+                }
+                let tag1_mm = hamming_iupac(tag1_seq, &seq[0..t1l]);
+                if tag1_mm > max_tag_mm {
+                    continue;
+                }
+                let p_start = t1l;
+                let p_end = t1l + start_primer.len();
+                let start_mm = hamming_iupac(start_primer, &seq[p_start..p_end]);
+                if start_mm > max_primer_mm {
+                    continue;
+                }
+
+                for (tag2_seq, tag2_name) in &tags.rc_list {
+                    let t2l = tag2_seq.len();
+                    if t2l + end_primer.len() > slen {
+                        continue;
+                    }
+                    let tag2_start = slen - t2l;
+                    let tag2_mm = hamming_iupac(tag2_seq, &seq[tag2_start..]);
+                    if tag2_mm > max_tag_mm {
+                        continue;
+                    }
+                    let ep_start = tag2_start - end_primer.len();
+                    let ep_end = tag2_start;
+                    if ep_start < p_end {
+                        continue;
+                    }
+                    let end_mm = hamming_iupac(end_primer, &seq[ep_start..ep_end]);
+                    if end_mm > max_primer_mm {
+                        continue;
+                    }
+
+                    let (b_start, b_end) = if keep_primers_seq {
+                        (p_start, ep_end)
+                    } else {
+                        (p_end, ep_start)
+                    };
+                    if b_start >= b_end {
+                        continue;
+                    }
+                    let between_raw = &line_upper[b_start..b_end];
+                    let between = if orientation == 0 {
+                        between_raw.to_string()
+                    } else {
+                        String::from_utf8(rc_bytes(between_raw.as_bytes()))
+                            .expect("rc_bytes output is valid ASCII by construction")
+                    };
+
+                    let (tn1, tn2) = if orientation == 0 {
+                        (tag1_name.clone(), tag2_name.clone())
+                    } else {
+                        (tag2_name.clone(), tag1_name.clone())
+                    };
+
+                    let score = tag1_mm + start_mm + end_mm + tag2_mm;
+                    if score < best_score {
+                        best_score = score;
+                        best = Some(PieceInfo {
+                            tag1: tn1,
+                            tag2: tn2,
+                            primer_name: key.clone(),
+                            between,
+                        });
+                        tied = false;
+                    } else if score == best_score {
+                        tied = true;
+                    }
+                }
+            }
+        }
+    }
+
+    if tied {
+        return None;
+    }
+    best
+}
+
 fn print_sorted_collapsed_counted_seqs(hap: &Hap) -> Result<()> {
     for (tag_comb, entry) in hap {
         let filename = format!("{}.txt", tag_comb);
@@ -386,6 +545,21 @@ fn print_summary_file(hap: &Hap) -> Result<()> {
 pub fn run(args: SortArgs) -> Result<()> {
     let tags = read_tags(&args.tags)?;
     let primers = read_primers(&args.primers)?;
+
+    if args.tag_mismatches > 0 {
+        if let Some(min_d) = min_equal_length_tag_distance(&tags) {
+            if 2 * args.tag_mismatches + 1 > min_d {
+                let safe = min_d.saturating_sub(1) / 2;
+                eprintln!(
+                    "WARNING: --tag-mismatches {} may misassign reads: minimum tag \
+                     Hamming distance is {}, so the safe maximum is {}.",
+                    args.tag_mismatches, min_d, safe
+                );
+            }
+        }
+    }
+    let use_anchored = args.primer_mismatches > 0 || args.tag_mismatches > 0;
+
     let mut hap: Hap = IndexMap::new();
     let mut count_errors: u32 = 0;
 
@@ -400,7 +574,19 @@ pub fn run(args: SortArgs) -> Result<()> {
         if seq.is_empty() {
             continue;
         }
-        match get_pieces_info(seq, &primers, &tags, args.keep_primers_seq, args.primer_mismatches) {
+        let info = if use_anchored {
+            get_pieces_info_anchored(
+                seq,
+                &primers,
+                &tags,
+                args.keep_primers_seq,
+                args.primer_mismatches,
+                args.tag_mismatches,
+            )
+        } else {
+            get_pieces_info(seq, &primers, &tags, args.keep_primers_seq, args.primer_mismatches)
+        };
+        match info {
             Some(info) => {
                 fill_hap(&mut hap, &info.tag1, &info.tag2, &info.primer_name, &info.between);
             }

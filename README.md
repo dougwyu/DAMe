@@ -1,4 +1,4 @@
-# DAMe v2.4: DNA Metabarcoding toolkit
+# DAMe v2.5: DNA Metabarcoding toolkit
 
 DAMe demultiplexes pooled metabarcoding / eDNA FASTQ reads by primer and
 tag sequences (**sort**), optionally removes chimeric sequences (**chimera**),
@@ -118,7 +118,7 @@ dame rsi Comparisons_2PCRs.txt
 ## Pipeline overview
 
 ```
-dame sort     -fq POOL.fastq --primers P.txt --tags T.txt [--primer-mismatches N]
+dame sort     -fq POOL.fastq --primers P.txt --tags T.txt [--primer-mismatches N] [--tag-mismatches N]
               → TagA_TagB.txt (collapsed unique seqs + counts) per tag pair
               → SummaryCounts.txt
 
@@ -233,6 +233,17 @@ codebase:
     implementations agree at N=1.  The Python primer matcher was rewritten from
     `re` to a manual IUPAC sliding window mirroring Rust, removing the `re`
     dependency.
+
+11. **DAMe v2.5 — Tag mismatches + anchored matching.**  `sort` gained
+    `--tag-mismatches N` (`-mt` in Python; default 0), a per-tag substitution
+    tolerance.  When `--primer-mismatches` or `--tag-mismatches` is non-zero,
+    sort uses a tag-anchored matcher: it finds tag candidates at the read ends
+    by IUPAC Hamming distance, checks the primers at the expected offsets,
+    scores each valid assembly by total mismatches, keeps the unique minimum,
+    and discards ambiguous ties.  At the defaults (both 0) the original exact
+    matcher runs unchanged (byte-identical).  A startup warning flags an unsafe
+    `--tag-mismatches` relative to the tag set's minimum Hamming distance.
+    Design adapted from a community PR (dougwyu/DAMe#1, @jiyinqiu).
 
 ## Documentation
 
