@@ -60,9 +60,9 @@ for i in range(len(PSinsLines["1"])):
 	#Read the haps files that are on PSinsLines paths for sample A
 	haps=ReadHapsForASample(X, PSinsLines, i )
 	#Get all the seqs (as well as its F, R, and counts info) for each PSnum files and get a nr set of them (seqsALL)
-	seqsALL, F, R, counts, seqs = getSeqsSetsAndFRcounts(X, haps)
-	#Compare how many times each seq from seqsALL are in each PSnumber and get the PSs seqs passing the thresholds of Y out of X 
-	MakeComparisonFile(X, seqsALL, haps, F, R, counts, seqs, OUT, OUTthresh, OUTYX, OUT_fas, OUTthresh_fas, OUTYX_fas, OUTthreshLen_fas, Y, T, L, sampleName, i)
+	seqsALL, F, R, seqs = getSeqsSetsAndFRcounts(X, haps)
+	#Compare how many times each seq from seqsALL are in each PSnumber and get the PSs seqs passing the thresholds of Y out of X
+	MakeComparisonFile(X, seqsALL, haps, F, R, seqs, OUT, OUTthresh, OUTYX, OUT_fas, OUTthresh_fas, OUTYX_fas, OUTthreshLen_fas, Y, T, L, sampleName, i)
 
 # Close the output files
 OUTthresh.close()

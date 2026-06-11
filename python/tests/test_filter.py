@@ -49,7 +49,7 @@ def test_makePSnumFiles_creates_files(tmp_path, monkeypatch):
 
 def test_getSeqsSetsAndFRcounts_empty():
     haps = {"0": [], "1": []}
-    seqsALL, F, R, counts, seqs = getSeqsSetsAndFRcounts(2, haps)
+    seqsALL, F, R, seqs = getSeqsSetsAndFRcounts(2, haps)
     assert seqsALL == set()
     assert F == {}
     assert R == {}
@@ -61,9 +61,9 @@ def test_getSeqsSetsAndFRcounts_with_data():
               ["CO1", "Tag1", "Tag2", "1", "CCCC"]],
         "1": [["CO1", "Tag1", "Tag2", "2", "AAAA"]],
     }
-    seqsALL, F, R, counts, seqs = getSeqsSetsAndFRcounts(2, haps)
+    seqsALL, F, R, seqs = getSeqsSetsAndFRcounts(2, haps)
     assert "AAAA" in seqsALL
     assert "CCCC" in seqsALL
     assert F["0"] == "Tag1"
     assert R["0"] == "Tag2"
-    assert counts["0"] == ["3", "1"]
+    assert seqs["0"] == {"AAAA": "3", "CCCC": "1"}

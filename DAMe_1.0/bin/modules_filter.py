@@ -71,24 +71,22 @@ def ReadHapsForASample(X, PSinsLines, i ):
 def getSeqsSetsAndFRcounts(X, haps):
 	F={}
 	R={}
-	counts={}
-	seqs={}
+	seqs={}   # dict[replicate_str -> dict[seq -> count_str]]
 	seqsALL=[]
 	for j in range(X):
 		if len(haps[str(j)])!=0: #if it's not empty
-			seqs[str(j)]=[]
+			seqs[str(j)]={}
 			F[str(j)]=haps[str(j)][0][1]
 			R[str(j)]=haps[str(j)][0][2]
-			counts[str(j)]=[]
 			for k in range(len(haps[str(j)])):
-				counts[str(j)].append(haps[str(j)][k][3])
-				seqs[str(j)].append(haps[str(j)][k][4])
-				seqsALL.append(haps[str(j)][k][4])
-	seqsALL=set(seqsALL) 
-	return (seqsALL, F, R, counts, seqs)
+				seq=haps[str(j)][k][4]
+				seqs[str(j)][seq]=haps[str(j)][k][3]
+				seqsALL.append(seq)
+	seqsALL=set(seqsALL)
+	return (seqsALL, F, R, seqs)
 
 
-def MakeComparisonFile(X, seqsALL, haps, F, R, counts, seqs, OUT, OUTthresh, OUTYX, OUT_fas, OUTthresh_fas, OUTYX_fas, OUTthreshLen_fas, Y, T, L, sampleName, i):
+def MakeComparisonFile(X, seqsALL, haps, F, R, seqs, OUT, OUTthresh, OUTYX, OUT_fas, OUTthresh_fas, OUTYX_fas, OUTthreshLen_fas, Y, T, L, sampleName, i):
 	idnum=1
 	for seq in seqsALL:
 		line=sampleName[i] + "\t"
@@ -98,21 +96,18 @@ def MakeComparisonFile(X, seqsALL, haps, F, R, counts, seqs, OUT, OUTthresh, OUT
 		t=0
 		for j in range(X):
 			if len(haps[str(j)])!=0: #if it's not empty
-				pos = [pos for pos,s in enumerate(seqs[str(j)]) if seq == s] ##Get the pos where it overlaps
-				if len(pos)==0:
-					count=0
-				else:
+				count_str=seqs[str(j)].get(seq, "0")   # O(1) dict lookup
+				if count_str != "0":
 					y=y+1
-					count=counts[str(j)][pos[0]]
-					if int(count) < T :
+					if int(count_str) < T:
 						t=t+1
-				line = line + F[str(j)] + "-" + R[str(j)] + "\t" + str(count) + "\t"
+				line = line + F[str(j)] + "-" + R[str(j)] + "\t" + count_str + "\t"
 				if j < (X-1):
-					lineFasIDs = lineFasIDs + F[str(j)] + "-" + R[str(j)] + "." 
-					lineFasCounts= lineFasCounts + str(count) + "_"
+					lineFasIDs = lineFasIDs + F[str(j)] + "-" + R[str(j)] + "."
+					lineFasCounts= lineFasCounts + count_str + "_"
 				else:
 					lineFasIDs = lineFasIDs + F[str(j)] + "-" + R[str(j)] + "_" + str(idnum) + "\t"
-					lineFasCounts= lineFasCounts + str(count) + "\n" + seq
+					lineFasCounts= lineFasCounts + count_str + "\n" + seq
 			if len(haps[str(j)])==0: #if it is empty
 				line = line + "empty\t0\t"
 				if j < (X-1):

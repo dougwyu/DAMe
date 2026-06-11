@@ -37,6 +37,13 @@ Large dataset — synthetic benchmark (196,000 reads, 2 pools of ~100k reads eac
 | filter | ~149 ms | ~39 ms | ~38 ms | ~38 ms | ~38 ms | ~4× |
 | rsi | ~150 ms | ~33 ms | ~34 ms | ~34 ms | ~34 ms | ~4.4× |
 
+**v2.4 mismatch-tolerance benchmark** (large dataset — same 196,000-read synthetic corpus):
+
+| Sort mode | Python 3 | Rust 2.4 | Speedup |
+|-----------|----------|----------|---------|
+| exact (default, `-m 0 --mt 0`) | ~500 ms/pool | ~139 ms/pool | ~3.6× |
+| mismatch (`-m 2 --mt 1`) | ~13 s/pool | ~139 ms/pool | ~93× |
+
 (†) The v2.2 sort figure was remeasured under the current toolchain
 (rustc 1.94) and machine-load conditions for an apples-to-apples comparison
 with v2.3.  The previous v2.2 figure of ~59 ms/pool was recorded on a
@@ -72,6 +79,16 @@ primers with 8 tags, the measured sort speedup is ~5% (the small N_tags
 limits the benefit of the O(1) lookup, and the synthetic dataset is
 parsing-bound).  Larger tag panels should benefit more.
 
+The v2.4 mismatch-tolerant sort (`get_pieces_info_mismatch`) precomputes
+all tag candidates via Hamming distance once per read before entering the
+primer loop, and uses IUPAC-aware `hamming_iupac_primer` only for reads that
+pass the tag filter — avoiding the O(N_primers × N_tags) cross-product scan
+that makes Python's mismatch path very slow.  In exact mode (default) Rust
+v2.4 is ~3.6× faster than Python; in mismatch mode (`-m 2 --mt 1`) the gap
+widens to ~93×, because Python's nested mismatch loop is effectively O(N_reads
+× N_primers × N_tags × read_length) while the Rust implementation keeps the
+per-read work tightly bounded.
+
 ## Quick start
 
 ### Python version
@@ -80,13 +97,16 @@ parsing-bound).  Larger tag panels should benefit more.
 pip install -e python/
 
 dame-py sort \
-  --fq Pool1.fastq \
-  --primers Primers.txt \
-  --tags Tags.txt
+  -fq Pool1.fastq \
+  -p Primers.txt \
+  -t Tags.txt \
+  -m 2 -mt 1 \
+  -psInfo PSinfo.txt
 
 dame-py filter \
-  --ps-info PSinfo.txt \
-  --x 2 --y 2 --t 2 --l 50
+  -psInfo PSinfo.txt \
+  -x 2 -y 2 -p 2 -t 2 -l 50 \
+  -o Filter_min2PCRs_min2copies_MIFISH
 
 dame-py rsi Comparisons_2PCRs.txt
 ```
@@ -101,11 +121,13 @@ dame sort \
   --fq Pool1.fastq \
   --primers Primers.txt \
   --tags Tags.txt \
-  --primer-mismatches 1
+  -m 2 --mt 1 \
+  --ps-info PSinfo.txt
 
 dame filter \
   --ps-info PSinfo.txt \
-  --x 2 --y 2 --t 2 --l 50
+  --x 2 --y 2 --p 2 --t 2 --l 50 \
+  -o Filter_min2PCRs_min2copies_marker
 
 dame rsi Comparisons_2PCRs.txt
 ```
@@ -113,16 +135,19 @@ dame rsi Comparisons_2PCRs.txt
 ## Pipeline overview
 
 ```
-dame sort     -fq POOL.fastq --primers P.txt --tags T.txt [--primer-mismatches N]
+dame sort     --fq POOL.fastq --primers P.txt --tags T.txt
+              [-m N] [--mt N] [--ps-info PSINFO.txt]
               → TagA_TagB.txt (collapsed unique seqs + counts) per tag pair
               → SummaryCounts.txt
+              → SplitSummary.txt  (only when --ps-info is given)
 
 dame chimera  --ps-info PSinfo.txt --x 2          # requires usearch on PATH
               → TagA_TagB_Pool.noChim.txt
 
-dame filter   --ps-info PSinfo.txt --x 2 --y 2 --t 2 --l 50
-              → Comparisons_2PCRs.txt (all seqs, all replicates)
-              → FilteredReads.fna   (passed all thresholds)
+dame filter   --ps-info PSinfo.txt --x 2 --y 2 --p 2 --t 2 --l 50 [-o OUTDIR]
+              → OUTDIR/Comparisons_2PCRs.txt (all seqs, all replicates)
+              → OUTDIR/FilteredReads.fna   (passed all thresholds)
+              (OUTDIR auto-named Filter_min{Y}PCRs_min{T}copies_{marker} if -o omitted)
 
 dame rsi      Comparisons_2PCRs.txt
               → RSI_output.txt
@@ -218,16 +243,45 @@ codebase:
    `dame-py`.  On CO1 tutorial primers with 8 tags, the measured sort speedup
    is ~5%; larger tag panels should benefit more from the O(1) lookup.
 
-10. **DAMe v2.4 — Configurable primer mismatches.**  `sort` gained a
-    `-m`/`--primer-mismatches N` option (default 0) that tolerates up to N
-    substitutions per primer match, IUPAC-aware, using leftmost-within-budget
-    selection.  The budget applies independently to each of the four primer
-    sites (forward/reverse orientation × start/end).  Tags are still matched
-    exactly.  At N=0 the output is byte-identical to v2.3, verified by the
-    existing integration tests; a new `run_sort_mismatch.sh` checks both
-    implementations agree at N=1.  The Python primer matcher was rewritten from
-    `re` to a manual IUPAC sliding window mirroring Rust, removing the `re`
-    dependency.
+10. **DAMe v2.4 — Mismatch-tolerant sort, split-summary output, and filter
+    improvements.**
+
+    *Rust `sort` new flags:* `--ps-info` (PCRsetsInfo file enabling per-pool
+    `SplitSummary.txt`), `-m` / `--m` (max Hamming mismatches per primer,
+    default 0), `--mt` (max Hamming mismatches per tag, default 0).  When
+    either mismatch threshold is non-zero, `get_pieces_info_mismatch` is
+    called instead of `get_pieces_info`: it precomputes all tag candidates
+    with `hamming_exact` once per read (a single O(N_tags) pass), then runs
+    `hamming_iupac_primer` only for those candidates — bounding the inner
+    loop tightly.  The return type of the read-classification path was
+    generalised from `Option<PieceInfo>` to a `SortOutcome` enum
+    (`Match`, `PartialMatch`, `NoMatch`), and `TagLookup` was extended with
+    an ordered `Vec<TagEntry>` for candidate enumeration.
+    `print_split_summary_file` categorises reads by tag-pair validity (valid
+    pair / same pair / different pair / one tag / no tag) when `--ps-info`
+    is supplied.  Benchmarked on the large synthetic dataset: exact mode is
+    ~3.6× faster than Python; mismatch mode (`-m 2 --mt 1`) is ~93× faster.
+
+    *Rust `filter` improvements:* (a) `-o` / `--outdir` flag added — output
+    directory auto-named `Filter_min{Y}PCRs_min{T}copies_{marker}` when
+    omitted (mirroring Python behaviour); all seven output files and
+    intermediate `PS{n}_files.txt` are written under that directory.
+    (b) Sequence lookup in `make_comparison_file` changed from O(N_seqs)
+    `Vec::iter().position()` to O(1) `HashMap::get()` by replacing the
+    parallel `counts: Vec` + `seqs: Vec` per replicate with a single
+    `seq_counts: HashMap<String, String>` (sequence → count).
+
+    *Python `sort` alignment:* `-ps` renamed to `-psInfo` to match the
+    convention used by `dame-py filter` and `dame-py chimera`.
+
+    *Python `filter` robustness improvements:* (a) `makePSnumFiles` and
+    `MakeSampleNameArray` now skip empty lines and lines with fewer than 4
+    fields, preventing `IndexError` on malformed PSinfo input; (b)
+    `ReadHapsForASample` validates each row has ≥ 5 columns before appending;
+    (c) `MakeComparisonFile` iterates `sorted(seqsALL)` for deterministic
+    output order; (d) non-numeric count values are caught with
+    `try/except ValueError` and treated as 0, matching Rust's
+    `.parse().unwrap_or(0)` behaviour.
 
 ## Documentation
 

@@ -2,6 +2,8 @@ import sys
 import argparse
 import numpy as np
 
+from dame.utils import smart_open
+
 
 def compare(matrix, j, a, b):
     print(f"Comparing replicates {a!r} and {b!r} from sample {j}")
@@ -33,7 +35,7 @@ def register_subcommand(subparsers):
 
 def run(args):
     data = []
-    with open(args.input) as f:
+    with smart_open(args.input) as f:
         for line in f:
             parts = line.split()
             data.append(parts)

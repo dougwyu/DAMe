@@ -1,36 +1,57 @@
 import os
 
+from dame.utils import smart_open
 
-def makePSnumFiles(PSinfo, X, P, chimeraChecked):
-    PSouts = [open("PS%s_files.txt" % (i + 1), "w") for i in range(X)]
-    with open(PSinfo) as f:
-        PS = f.readlines()
-    for NR, psinfo in enumerate(PS):
-        NR = NR + 1
-        psinfo = psinfo.rstrip().split()
-        residue = NR % X
-        idx = residue - 1 if residue != 0 else X - 1
-        if not chimeraChecked:
-            PSouts[idx].write("pool%s/%s_%s.txt\n" % (psinfo[3], psinfo[1], psinfo[2]))
-        else:
-            PSouts[idx].write("%s_%s_%s.noChim.txt\n" % (psinfo[1], psinfo[2], psinfo[3]))
+
+def makePSnumFiles(PSinfo, X, P, chimeraChecked, outdir="."):
+    from collections import OrderedDict
+    PSouts = [open(os.path.join(outdir, "PS%s_files.txt" % (i + 1)), "w") for i in range(X)]
+    sample_lines = OrderedDict()
+    with smart_open(PSinfo) as f:
+        for line in f:
+            line = line.rstrip()
+            if not line:
+                continue
+            psinfo = line.split()
+            if len(psinfo) < 4:
+                continue
+            sample = psinfo[0]
+            if sample not in sample_lines:
+                sample_lines[sample] = []
+            if not chimeraChecked:
+                entry = "pool%s/%s_%s.txt\n" % (psinfo[3], psinfo[1], psinfo[2])
+            else:
+                entry = "%s_%s_%s.noChim.txt\n" % (psinfo[1], psinfo[2], psinfo[3])
+            sample_lines[sample].append(entry)
+    for entries in sample_lines.values():
+        for k in range(X):
+            if k < len(entries):
+                PSouts[k].write(entries[k])
+            else:
+                PSouts[k].write("empty\n")
     for out in PSouts:
         out.close()
 
 
-def ReadPSnumFiles(X):
+def ReadPSnumFiles(X, outdir="."):
     PSinsLines = {}
     for i in range(X):
-        with open("PS%s_files.txt" % (i + 1)) as f:
+        with open(os.path.join(outdir, "PS%s_files.txt" % (i + 1))) as f:
             PSinsLines[str(i)] = f.readlines()
     return PSinsLines
 
 
 def MakeSampleNameArray(PSinfo):
     sampleName = []
-    with open(PSinfo) as f:
+    with smart_open(PSinfo) as f:
         for line in f:
-            name = line.split()[0]
+            line = line.rstrip()
+            if not line:
+                continue
+            parts = line.split()
+            if not parts:
+                continue
+            name = parts[0]
             if name not in sampleName:
                 sampleName.append(name)
     return sampleName
@@ -44,35 +65,35 @@ def ReadHapsForASample(X, PSinsLines, i):
         if path != "empty" and os.path.exists(path):
             with open(path) as f:
                 for line in f:
-                    haps[str(j)].append(line.split())
+                    row = line.split()
+                    if len(row) >= 5:
+                        haps[str(j)].append(row)
     return haps
 
 
 def getSeqsSetsAndFRcounts(X, haps):
     F = {}
     R = {}
-    counts = {}
-    seqs = {}
+    seqs = {}   # dict[replicate_str -> dict[seq -> count_str]]
     seqsALL = []
     for j in range(X):
         if len(haps[str(j)]) != 0:
-            seqs[str(j)] = []
+            seqs[str(j)] = {}
             F[str(j)] = haps[str(j)][0][1]
             R[str(j)] = haps[str(j)][0][2]
-            counts[str(j)] = []
             for k in range(len(haps[str(j)])):
-                counts[str(j)].append(haps[str(j)][k][3])
-                seqs[str(j)].append(haps[str(j)][k][4])
-                seqsALL.append(haps[str(j)][k][4])
+                seq = haps[str(j)][k][4]
+                seqs[str(j)][seq] = haps[str(j)][k][3]
+                seqsALL.append(seq)
     seqsALL = set(seqsALL)
-    return (seqsALL, F, R, counts, seqs)
+    return (seqsALL, F, R, seqs)
 
 
-def MakeComparisonFile(X, seqsALL, haps, F, R, counts, seqs,
+def MakeComparisonFile(X, seqsALL, haps, F, R, seqs,
                        OUT, OUTthresh, OUTYX, OUT_fas, OUTthresh_fas,
                        OUTYX_fas, OUTthreshLen_fas, Y, T, L, sampleName, i):
     idnum = 1
-    for seq in seqsALL:
+    for seq in sorted(seqsALL):
         line = sampleName[i] + "\t"
         lineFasIDs = ">" + sampleName[i] + "\t"
         lineFasCounts = "\t"
@@ -80,21 +101,22 @@ def MakeComparisonFile(X, seqsALL, haps, F, R, counts, seqs,
         t = 0
         for j in range(X):
             if len(haps[str(j)]) != 0:
-                pos = [pos for pos, s in enumerate(seqs[str(j)]) if seq == s]
-                if len(pos) == 0:
-                    count = 0
-                else:
+                count_str = seqs[str(j)].get(seq, "0")   # O(1) dict lookup
+                if count_str != "0":
                     y += 1
-                    count = counts[str(j)][pos[0]]
-                    if int(count) < T:
+                    try:
+                        count_val = int(count_str)
+                    except ValueError:
+                        count_val = 0
+                    if count_val < T:
                         t += 1
-                line = line + F[str(j)] + "-" + R[str(j)] + "\t" + str(count) + "\t"
+                line = line + F[str(j)] + "-" + R[str(j)] + "\t" + count_str + "\t"
                 if j < (X - 1):
                     lineFasIDs = lineFasIDs + F[str(j)] + "-" + R[str(j)] + "."
-                    lineFasCounts = lineFasCounts + str(count) + "_"
+                    lineFasCounts = lineFasCounts + count_str + "_"
                 else:
                     lineFasIDs = lineFasIDs + F[str(j)] + "-" + R[str(j)] + "_" + str(idnum) + "\t"
-                    lineFasCounts = lineFasCounts + str(count) + "\n" + seq
+                    lineFasCounts = lineFasCounts + count_str + "\n" + seq
             if len(haps[str(j)]) == 0:
                 line = line + "empty\t0\t"
                 if j < (X - 1):

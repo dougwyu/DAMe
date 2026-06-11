@@ -1,5 +1,7 @@
 import argparse
 
+from dame.utils import smart_open
+
 
 def register_subcommand(subparsers):
     p = subparsers.add_parser(
@@ -15,7 +17,7 @@ def register_subcommand(subparsers):
 
 def run(args):
     seq_id = 0
-    with open(args.input) as IN, open(args.outFas, "w") as OUT:
+    with smart_open(args.input) as IN, open(args.outFas, "w") as OUT:
         for line in IN:
             line = line.rstrip().split()
             count = 1
