@@ -249,3 +249,16 @@ def test_anchored_ambiguous_tag_is_discarded(tmp_path):
     PRIMERS = readPrimers(str(primers_file), {})
     line = "AAATACGTATATATTGCACCCC"  # AAAT is Hamming-1 from both AAAA and AATT
     assert GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 0, 1) == [1]
+
+
+def test_sort_argparser_accepts_tag_mismatches():
+    import argparse
+    import dame.sort as sortmod
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers()
+    sortmod.register_subcommand(sub)
+    args = parser.parse_args(["sort", "-fq", "x", "-p", "y", "-t", "z", "-mt", "1"])
+    assert args.tag_mismatches == 1
+    args2 = parser.parse_args(["sort", "--fq", "x", "--primers", "y", "--tags", "z",
+                               "--tag-mismatches", "2"])
+    assert args2.tag_mismatches == 2
