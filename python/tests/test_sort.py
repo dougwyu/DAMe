@@ -4,6 +4,7 @@ import os
 from dame.modules_sort import (
     RC, readTags, readPrimers, FillHAP, GetPiecesInfo, iupac_matches, find_primer,
     hamming_iupac, GetPiecesInfoMismatch, min_equal_length_tag_distance,
+    compile_primer_regexes,
 )
 
 
@@ -133,33 +134,39 @@ def _mismatch_fixtures(tmp_path):
     return PRIMERS, TAGS
 
 
-def test_GetPiecesInfo_one_mismatch(tmp_path):
+def test_compile_primer_regexes_expands_iupac():
+    raw = {"CO1": [["GCRTGC", "CTGACT"], ["GCAYGC", "AGTCAG"]]}
+    rx = compile_primer_regexes(raw)
+    assert rx["CO1"][0][0] == "GC[AG]TGC"   # R -> [AG]
+    assert rx["CO1"][0][1] == "CTGACT"      # no ambiguity codes
+
+
+def test_GetPiecesInfo_exact_forward(tmp_path):
+    # Fast exact (zero-mismatch) regex matcher on a clean forward read.
     PRIMERS, TAGS = _mismatch_fixtures(tmp_path)
-    # Forward primer ACGT miscalled as ACGA.
-    line = "AAAAACGAATATATTGCAGGGG"
-    # N=0 -> rejected (error sentinel [1])
-    assert GetPiecesInfo(line, PRIMERS, TAGS, False, 0) == [1]
-    # N=1 -> sorts to Tag1_Tag2 with barcode ATATAT
-    info = GetPiecesInfo(line, PRIMERS, TAGS, False, 1)
-    assert info[0] == "Tag1"
-    assert info[1] == "Tag2"
-    assert info[2] == "CO1"
-    assert info[3] == "ATATAT"
+    PRIMERS_RX = compile_primer_regexes(PRIMERS)
+    line = "AAAAACGTATATATTGCAGGGG"
+    assert GetPiecesInfo(line, PRIMERS_RX, TAGS, False) == ["Tag1", "Tag2", "CO1", "ATATAT"]
+    assert GetPiecesInfo("NNNNNNNNNNNNNNNNNNNN", PRIMERS_RX, TAGS, False) == [1]
 
 
-def test_GetPiecesInfo_end_primer_mismatch(tmp_path):
+def test_GetPiecesInfo_lowercase_read(tmp_path):
+    # Soft-masked / lowercase reads are uppercased before matching (exact path).
+    PRIMERS, TAGS = _mismatch_fixtures(tmp_path)
+    PRIMERS_RX = compile_primer_regexes(PRIMERS)
+    line = "aaaaacgtatatattgcagggg"
+    assert GetPiecesInfo(line, PRIMERS_RX, TAGS, False) == ["Tag1", "Tag2", "CO1", "ATATAT"]
+
+
+def test_anchored_end_primer_mismatch(tmp_path):
     PRIMERS, TAGS = _mismatch_fixtures(tmp_path)
     # Forward primer ACGT exact; END primer RC(R)=TGCA miscalled as TGCT.
     line = "AAAAACGTATATATTGCTGGGG"
-    assert GetPiecesInfo(line, PRIMERS, TAGS, False, 0) == [1]
-    info = GetPiecesInfo(line, PRIMERS, TAGS, False, 1)
-    assert info[0] == "Tag1"
-    assert info[1] == "Tag2"
-    assert info[2] == "CO1"
-    assert info[3] == "ATATAT"
+    assert GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 0, 0) == [1]
+    assert GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 1, 0) == ["Tag1", "Tag2", "CO1", "ATATAT"]
 
 
-def test_GetPiecesInfo_reverse_orientation_mismatch(tmp_path):
+def test_anchored_reverse_primer_mismatch(tmp_path):
     tags_file = tmp_path / "tags.txt"
     tags_file.write_text("AAAA\tTag1\nCCCC\tTag2\nGGGG\tTag3\nTTTT\tTag4\n")
     primers_file = tmp_path / "primers.txt"
@@ -168,23 +175,8 @@ def test_GetPiecesInfo_reverse_orientation_mismatch(tmp_path):
     PRIMERS = readPrimers(str(primers_file), {})
     # Reverse-orientation read; start primer R=CCGT miscalled CCGA.
     line = "CCCCCCGAGGGGGGCTTTTTTT"
-    assert GetPiecesInfo(line, PRIMERS, TAGS, False, 0) == [1]
-    info = GetPiecesInfo(line, PRIMERS, TAGS, False, 1)
-    assert info[0] == "Tag1"
-    assert info[1] == "Tag2"
-    assert info[2] == "CO1"
-    assert info[3] == "CCCCCC"
-
-
-def test_GetPiecesInfo_lowercase_read(tmp_path):
-    PRIMERS, TAGS = _mismatch_fixtures(tmp_path)
-    # Soft-masked / lowercase reads are uppercased before matching.
-    line = "aaaaacgtatatattgcagggg"
-    info = GetPiecesInfo(line, PRIMERS, TAGS, False, 0)
-    assert info[0] == "Tag1"
-    assert info[1] == "Tag2"
-    assert info[2] == "CO1"
-    assert info[3] == "ATATAT"
+    assert GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 0, 0) == [1]
+    assert GetPiecesInfoMismatch(line, PRIMERS, TAGS, False, 1, 0) == ["Tag1", "Tag2", "CO1", "CCCCCC"]
 
 
 def test_hamming_iupac():
