@@ -263,6 +263,21 @@ codebase:
     IUPAC sliding window mirroring Rust; the exact (no-mismatch) path keeps the
     faster compiled-regex matcher (see Performance).
 
+12. **Polish and community-PR adoption.**  Several smaller improvements landed
+    alongside v2.5, some adapted from a community PR (dougwyu/DAMe#1, @jiyinqiu):
+    `dame-py` now reads gzip FASTQ transparently (`utils.smart_open`), matching
+    the Rust binary; the Python CLI accepts `--long` flag aliases (`--fq`,
+    `--primers`, `--ps-info`, …) alongside the original single-dash forms;
+    `filter` output is deterministic (sequences are sorted, making the two
+    implementations byte-identical and letting the integration test compare them
+    in full); reads are uppercased before matching so soft-masked bases are not
+    silently dropped; malformed `decollapse` rows are skipped instead of
+    crashing; and the dead standalone `main()` entry points were removed.  A
+    reproducible `benchmark/` harness was added; benchmarking it caught and
+    fixed a ~10× regression in the Python `sort` default path (the regex matcher
+    had been replaced wholesale for mismatch support — it is now used again for
+    the no-mismatch path, see Performance).
+
 11. **DAMe v2.5 — Tag mismatches + anchored matching.**  `sort` gained
     `--tag-mismatches N` (`-mt` in Python; default 0), a per-tag substitution
     tolerance.  When `--primer-mismatches` or `--tag-mismatches` is non-zero,
@@ -316,11 +331,16 @@ cargo test --manifest-path rust/Cargo.toml
 
 # Shell integration tests (requires both dame-py and dame on PATH)
 bash tests/integration/run_sort.sh
+bash tests/integration/run_sort_mismatch.sh       # --primer-mismatches parity
+bash tests/integration/run_sort_tag_mismatch.sh   # --tag-mismatches parity
 bash tests/integration/run_rsi.sh
 bash tests/integration/run_filter.sh
 bash tests/integration/run_decollapse.sh
 bash tests/integration/run_chimera.sh   # skips if usearch not found
 bash tests/integration/run_pipeline.sh
+
+# Sort throughput benchmark (Python vs Rust)
+bash benchmark/run_sort_benchmark.sh
 ```
 
 ## Repository layout
@@ -334,6 +354,7 @@ python/                          Python 3 implementation (dame-py entry point)
     chimera_check.py / modules_chimera_check.py  Chimera detection via usearch
     rsi.py                       Renkonen Similarity Index
     decollapse.py                Expand collapsed sequences back to reads
+    utils.py                     Shared helpers (transparent gzip input)
   tests/                         pytest unit test suite
 
 rust/                            Rust implementation (dame binary)
@@ -353,6 +374,7 @@ tests/
   integration/                   Shell scripts comparing dame vs dame-py output
 
 tutorial/                        Synthetic dataset and step-by-step walkthrough
+benchmark/                       Reproducible sort throughput benchmark
 docs/                            Design specs and implementation plans
 DAMe_1.0/                        Original DAMe v1.0 (Python 2 scripts, example data, manual)
 ```

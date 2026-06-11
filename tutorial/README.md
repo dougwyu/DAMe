@@ -26,8 +26,8 @@ dame decollapse -> expand collapsed sequences back to one record per original re
 - Python 3.6+ (for `generate_tutorial_data.py`)
 - **Either** the `dame` Rust binary (recommended for speed) **or** `dame-py` (Python port)
 
-`dame` is ~5–8× faster than `dame-py` and accepts both plain and
-gzip-compressed FASTQ (`.fastq.gz`) with no extra flags.
+`dame` is ~5–8× faster than `dame-py`. Both accept plain and gzip-compressed
+FASTQ (`.fastq.gz`) input with no extra flags.
 
 To build the Rust binary from source:
 
@@ -100,7 +100,7 @@ Pool2.fastq: 292 reads
 ```
 
 This creates `Pool1.fastq` and `Pool2.fastq` (uncompressed, plain FASTQ).
-The `dame` Rust binary also accepts gzip-compressed input transparently —
+Both `dame` and `dame-py` also accept gzip-compressed input transparently —
 you can pass `Pool1.fastq.gz` directly with no extra flags.
 
 ### Read Structure
@@ -379,10 +379,12 @@ All steps above work identically with `dame-py`. The flag names differ slightly:
 # dame (Rust)
 dame sort --fq Pool1.fastq --primers Primers.txt --tags Tags.txt
 dame sort --fq Pool1.fastq --primers Primers.txt --tags Tags.txt --primer-mismatches 1
+dame sort --fq Pool1.fastq --primers Primers.txt --tags Tags.txt --tag-mismatches 1
 
-# dame-py (Python)
+# dame-py (Python) — accepts both --long and single-dash flags
 dame-py sort -fq Pool1.fastq -p Primers.txt -t Tags.txt
 dame-py sort -fq Pool1.fastq -p Primers.txt -t Tags.txt -m 1
+dame-py sort -fq Pool1.fastq -p Primers.txt -t Tags.txt -mt 1
 ```
 
 ### Filter
