@@ -10,7 +10,7 @@ implementations:
 | | Python 3 (`python/`) | Rust (`rust/`) |
 |---|---|---|
 | Requirements | Python ≥ 3.11, numpy | Rust stable (cargo) |
-| Install | `pip install -e python/` | `cd rust && cargo build --release` |
+| Install | `pip install -e python/` (or `uv tool install --editable ./python`) | `cd rust && cargo build --release` |
 | Entry point | `dame-py` | `dame` |
 | Input FASTQ | plain or gzip | plain or gzip |
 | Chimera check | via `usearch` on PATH | via `usearch` on PATH |
@@ -109,8 +109,15 @@ exact path is unaffected.
 binary) and the original single-dash forms (`-fq`, `-p`, `-t`, `-psInfo`,
 `-x`, …) for backward compatibility.
 
+Install with pip, or with [uv](https://docs.astral.sh/uv/) (which puts `dame-py`
+in its own isolated, uv-managed environment available on your `PATH`):
+
 ```bash
-pip install -e python/
+pip install -e python/                 # standard pip (editable)
+# or:
+uv tool install --editable ./python    # via uv — run `dame-py` from anywhere
+#   update deps later: uv tool upgrade dame-py
+#   uninstall:         uv tool uninstall dame-py
 
 dame-py sort \
   --fq Pool1.fastq \
