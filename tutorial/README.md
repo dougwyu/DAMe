@@ -139,14 +139,14 @@ dame sort \
     --fq Pool1.fastq \
     --primers Primers.txt \
     --tags Tags.txt
-mv tag*.txt SummaryCounts.txt pool1/
+mv tag*_*.txt SummaryCounts.txt pool1/
 
 # Sort Pool 2
 dame sort \
     --fq Pool2.fastq \
     --primers Primers.txt \
     --tags Tags.txt
-mv tag*.txt SummaryCounts.txt pool2/
+mv tag*_*.txt SummaryCounts.txt pool2/
 ```
 
 ### Sort Output Files
@@ -519,9 +519,9 @@ python generate_tutorial_data.py
 # 2. Sort
 mkdir -p pool1 pool2
 dame sort --fq Pool1.fastq --primers Primers.txt --tags Tags.txt
-mv tag*.txt SummaryCounts.txt pool1/
+mv tag*_*.txt SummaryCounts.txt pool1/
 dame sort --fq Pool2.fastq --primers Primers.txt --tags Tags.txt
-mv tag*.txt SummaryCounts.txt pool2/
+mv tag*_*.txt SummaryCounts.txt pool2/
 
 # 3. Filter
 dame filter --ps-info PSinfo.txt --x 2 --y 2 --t 2 --l 50
