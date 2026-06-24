@@ -82,6 +82,8 @@ jobs:
         run: bash tests/integration/run_decollapse.sh
       - name: Run filter integration test
         run: bash tests/integration/run_filter.sh
+      - name: Run convert integration test
+        run: bash tests/integration/run_convert.sh
       - name: Run chimera integration test (skips if no usearch)
         run: bash tests/integration/run_chimera.sh
       - name: Run pipeline integration test
