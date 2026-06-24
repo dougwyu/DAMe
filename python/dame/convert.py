@@ -33,31 +33,32 @@ def convert(in_fasta, min_length=0, max_length=None, usearch=False, sample_fasta
     counter = 1
 
     with open(out_name, "w") as out:
-        for sample, size, seq in _parse_fasta(in_fasta):
-            if len(seq) < min_length:
-                continue
-            if max_length is not None and len(seq) > max_length:
-                continue
+        try:
+            for sample, size, seq in _parse_fasta(in_fasta):
+                if len(seq) < min_length:
+                    continue
+                if max_length is not None and len(seq) > max_length:
+                    continue
 
-            if usearch:
-                hdr = f">{sample};size={size}"
-                out_seq = seq.ljust(max_length, "N") if max_length is not None else seq
-            else:
-                hdr = f">{sample}:{counter} count={size}"
-                out_seq = seq
-                counter += 1
+                if usearch:
+                    hdr = f">{sample};size={size}"
+                    out_seq = seq.ljust(max_length, "N") if max_length is not None else seq
+                else:
+                    hdr = f">{sample}:{counter} count={size}"
+                    out_seq = seq
+                    counter += 1
 
-            out.write(hdr + "\n" + out_seq + "\n")
+                out.write(hdr + "\n" + out_seq + "\n")
 
-            if sample_fastas:
-                if sample not in sample_handles:
-                    sample_handles[sample] = open(
-                        f"SampleFastas/{sample}.fixed.fasta", "w"
-                    )
-                sample_handles[sample].write(hdr + "\n" + out_seq + "\n")
-
-    for fh in sample_handles.values():
-        fh.close()
+                if sample_fastas:
+                    if sample not in sample_handles:
+                        sample_handles[sample] = open(
+                            f"SampleFastas/{sample}.fixed.fasta", "w"
+                        )
+                    sample_handles[sample].write(hdr + "\n" + out_seq + "\n")
+        finally:
+            for fh in sample_handles.values():
+                fh.close()
 
     return out_name
 

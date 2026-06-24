@@ -164,3 +164,10 @@ def test_convert_argparser_legacy_flags(tmp_path):
     assert args.min_length == 5
     assert args.max_length == 100
     assert args.sample_fastas is True
+
+    # Also check long-form legacy spellings
+    args2 = parser.parse_args(["convert", "--inFasta", "y.fna",
+                                "--minLength", "3", "--maxLength", "200"])
+    assert args2.in_fasta == "y.fna"
+    assert args2.min_length == 3
+    assert args2.max_length == 200
