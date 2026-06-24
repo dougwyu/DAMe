@@ -2,6 +2,7 @@ import argparse
 
 from dame import sort, chimera_check, decollapse, rsi
 import dame.filter as filter_mod
+import dame.convert as convert_mod
 
 
 def main():
@@ -16,6 +17,7 @@ def main():
     filter_mod.register_subcommand(subparsers)
     decollapse.register_subcommand(subparsers)
     rsi.register_subcommand(subparsers)
+    convert_mod.register_subcommand(subparsers)
 
     args = parser.parse_args()
     args.func(args)
