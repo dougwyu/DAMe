@@ -301,7 +301,38 @@ The FASTA header format is:
 
 ---
 
-## Section 6: Step 3 — RSI
+## Section 6: Step 2b — Convert for Clustering
+
+Convert the filtered reads for downstream clustering with USEARCH or sumaclust:
+
+```bash
+# Sumaclust format (default):
+dame-py convert -i FilteredReads.fna
+# → FilteredReads.forsumaclust.fna
+
+# USEARCH format (adds ;size= tag):
+dame-py convert -i FilteredReads.fna -u
+
+# USEARCH with fixed-length N-padding (useful for some USEARCH versions):
+dame-py convert -i FilteredReads.fna -u --max-length 313
+
+# Per-sample fastas (creates SampleFastas/ directory):
+dame-py convert -i FilteredReads.fna -s
+```
+
+| Flag | Description |
+|------|-------------|
+| `-i` / `--in-fasta` | Input `FilteredReads.fna` (required) |
+| `-u` / `--usearch` | USEARCH output (`>Sample;size=N`); default is sumaclust (`>Sample:N count=N`) |
+| `--min-length N` | Drop sequences shorter than N |
+| `--max-length N` | Drop sequences longer than N; pad to N in USEARCH mode |
+| `-s` / `--sample-fastas` | Write per-sample fastas to `SampleFastas/` |
+
+`dame-py` also accepts the original v1.0 spellings: `--inFasta`, `-lmin`, `-lmax`, `--sampleFastas`.
+
+---
+
+## Section 7: Step 3 — RSI
 
 The Renkonen Similarity Index measures how compositionally similar two PCR replicates
 are. A value of 0 means the replicates are identical in composition; a value of 1
@@ -342,7 +373,7 @@ Sample	ReplicateA	ReplicateB	RSI
 
 ---
 
-## Section 7: Step 4 — Decollapse (Optional)
+## Section 8: Step 4 — Decollapse (Optional)
 
 The sort step collapses identical reads into a single entry with a count. Decollapse
 reverses this: it expands each unique sequence back to one FASTA record per original
@@ -369,7 +400,7 @@ per read rather than a collapsed representation.
 
 ---
 
-## Section 8: dame-py Equivalents
+## Section 9: dame-py Equivalents
 
 All steps above work identically with `dame-py`. The flag names differ slightly:
 
@@ -409,6 +440,22 @@ dame-py rsi Comparisons_2PCRs.txt
 dame-py rsi -e Comparisons_2PCRs.txt
 ```
 
+### Convert
+
+```bash
+# dame (Rust)
+dame convert -i FilteredReads.fna
+dame convert -i FilteredReads.fna -u
+dame convert -i FilteredReads.fna -u --max-length 313
+dame convert -i FilteredReads.fna -s
+
+# dame-py (Python) — also accepts v1.0 spellings: --inFasta, -lmin, -lmax, --sampleFastas
+dame-py convert -i FilteredReads.fna
+dame-py convert -i FilteredReads.fna -u
+dame-py convert -i FilteredReads.fna -u --max-length 313
+dame-py convert -i FilteredReads.fna -s
+```
+
 ### Decollapse
 
 ```bash
@@ -421,7 +468,7 @@ dame-py decollapse -input pool1/tag1_tag2.txt -outFas decollapsed.fasta
 
 ---
 
-## Section 9: Understanding Sort Output in Detail
+## Section 10: Understanding Sort Output in Detail
 
 Each `tagA_tagB.txt` file has five tab-separated columns:
 
@@ -455,7 +502,7 @@ Those are counted and printed as "erroneous sequences" to stdout. This includes:
 
 ---
 
-## Section 10: Troubleshooting
+## Section 11: Troubleshooting
 
 ### "No output files created after sort"
 
@@ -525,6 +572,9 @@ mv tag*_*.txt SummaryCounts.txt pool2/
 
 # 3. Filter
 dame filter --ps-info PSinfo.txt --x 2 --y 2 --t 2 --l 50
+
+# 3b. Convert for clustering (sumaclust default; use -u for USEARCH)
+dame convert -i FilteredReads.fna
 
 # 4. RSI
 dame rsi Comparisons_2PCRs.txt

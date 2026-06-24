@@ -165,6 +165,11 @@ dame filter   --ps-info PSinfo.txt --x 2 --y 2 --t 2 --l 50
               → Comparisons_2PCRs.txt (all seqs, all replicates)
               → FilteredReads.fna   (passed all thresholds)
 
+dame convert  -i FilteredReads.fna [-u] [--min-length N] [--max-length N] [-s]
+              → FilteredReads.forsumaclust.fna  (sumaclust input, default)
+              → FilteredReads.forusearch.fna    (USEARCH input, with -u)
+              → SampleFastas/<Sample>.fixed.fasta  (per-sample, with -s)
+
 dame rsi      Comparisons_2PCRs.txt
               → RSI_output.txt
 
