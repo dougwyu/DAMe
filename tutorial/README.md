@@ -15,9 +15,10 @@ by a forward and a reverse tag flanking the primer-amplicon-primer region.
 ### What DAMe Does
 
 ```
-dame sort   -> demultiplex reads by tag combination, collapse to unique sequences
-dame filter -> apply presence (y), count (t), and length (l) thresholds across replicates
-dame rsi    -> compute Renkonen Similarity Index between PCR replicates
+dame sort       -> demultiplex reads by tag combination, collapse to unique sequences
+dame filter     -> apply presence (y), count (t), and length (l) thresholds across replicates
+dame convert    -> reformat FilteredReads.fna for USEARCH or sumaclust clustering
+dame rsi        -> compute Renkonen Similarity Index between PCR replicates
 dame decollapse -> expand collapsed sequences back to one record per original read
 ```
 

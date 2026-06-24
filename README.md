@@ -1,10 +1,11 @@
-# DAMe v2.5: DNA Metabarcoding toolkit
+# DAMe v2.6: DNA Metabarcoding toolkit
 
 DAMe demultiplexes pooled metabarcoding / eDNA FASTQ reads by primer and
 tag sequences (**sort**), optionally removes chimeric sequences (**chimera**),
-filters amplicons across PCR replicates (**filter**), computes the Renkonen
-Similarity Index between replicates (**rsi**), and expands collapsed sequences
-back to individual reads (**decollapse**).  It is available in two
+filters amplicons across PCR replicates (**filter**), converts filtered reads
+to USEARCH or sumaclust input (**convert**), computes the Renkonen Similarity
+Index between replicates (**rsi**), and expands collapsed sequences back to
+individual reads (**decollapse**).  It is available in two
 implementations:
 
 | | Python 3 (`python/`) | Rust (`rust/`) |
@@ -195,7 +196,7 @@ codebase:
    `PSinsLines`.
 
 2. **Formal test suite.**  A pytest suite (`python/tests/`) was written
-   covering all five subcommands with synthetic inputs generated via `tmp_path`
+   covering all six subcommands with synthetic inputs generated via `tmp_path`
    fixtures, and shell integration tests (`tests/integration/`) that smoke-test
    the installed `dame-py` entry point end-to-end.
 
@@ -224,7 +225,7 @@ codebase:
    `tutorial/README.md`.
 
 6. **GitHub Actions CI.**  A matrix workflow (`.github/workflows/ci.yml`) runs
-   pytest on Python 3.11 and 3.12, `cargo test` on Rust stable, and all six
+   pytest on Python 3.11 and 3.12, `cargo test` on Rust stable, and all seven
    integration scripts on every push and pull request to `master`.
 
 7. **DAMe v2.1 — Rust performance improvements.**  Two targeted optimisations
@@ -275,7 +276,7 @@ codebase:
     IUPAC sliding window mirroring Rust; the exact (no-mismatch) path keeps the
     faster compiled-regex matcher (see Performance).
 
-12. **Polish and community-PR adoption.**  Several smaller improvements landed
+11. **Polish and community-PR adoption.**  Several smaller improvements landed
     alongside v2.5, some adapted from a community PR (dougwyu/DAMe#1, @jiyinqiu):
     `dame-py` now reads gzip FASTQ transparently (`utils.smart_open`), matching
     the Rust binary; the Python CLI accepts `--long` flag aliases (`--fq`,
@@ -290,7 +291,7 @@ codebase:
     had been replaced wholesale for mismatch support — it is now used again for
     the no-mismatch path, see Performance).
 
-11. **DAMe v2.5 — Tag mismatches + anchored matching.**  `sort` gained
+12. **DAMe v2.5 — Tag mismatches + anchored matching.**  `sort` gained
     `--tag-mismatches N` (`-mt` in Python; default 0), a per-tag substitution
     tolerance.  When `--primer-mismatches` or `--tag-mismatches` is non-zero,
     sort uses a tag-anchored matcher: it finds tag candidates at the read ends
@@ -300,6 +301,18 @@ codebase:
     matcher runs unchanged (byte-identical).  A startup warning flags an unsafe
     `--tag-mismatches` relative to the tag set's minimum Hamming distance.
     Design adapted from a community PR (dougwyu/DAMe#1, @jiyinqiu).
+
+13. **DAMe v2.6 — Convert subcommand.**  A new `convert` subcommand converts
+    `FilteredReads.fna` (DAMe filter output) to USEARCH (`>Sample;size=N`) or
+    sumaclust (`>Sample:N count=N`) input format, with optional length filtering
+    (`--min-length`, `--max-length`), N-padding to a fixed width in USEARCH
+    mode, and per-sample FASTA output (`--sample-fastas` → `SampleFastas/`).
+    Fixes three bugs present in the original `convertToUSearch.py` v1.0 script:
+    a float default for `lmax` (`1e6`) that broke integer comparisons, a missing
+    `os.makedirs` call that crashed when `SampleFastas/` did not exist, and an
+    off-by-one in the N-padding width.  The Python port accepts the original v1.0
+    flag spellings (`--inFasta`, `-lmin`, `-lmax`, `--sampleFastas`) for backward
+    compatibility.
 
 ## Documentation
 
@@ -347,6 +360,7 @@ bash tests/integration/run_sort_mismatch.sh       # --primer-mismatches parity
 bash tests/integration/run_sort_tag_mismatch.sh   # --tag-mismatches parity
 bash tests/integration/run_rsi.sh
 bash tests/integration/run_filter.sh
+bash tests/integration/run_convert.sh
 bash tests/integration/run_decollapse.sh
 bash tests/integration/run_chimera.sh   # skips if usearch not found
 bash tests/integration/run_pipeline.sh
@@ -364,6 +378,7 @@ python/                          Python 3 implementation (dame-py entry point)
     sort.py / modules_sort.py    Demultiplex reads by tag+primer (sort subcommand)
     filter.py / modules_filter.py  Filter amplicons across PCR replicates
     chimera_check.py / modules_chimera_check.py  Chimera detection via usearch
+    convert.py                   Convert FilteredReads.fna to USEARCH/sumaclust format
     rsi.py                       Renkonen Similarity Index
     decollapse.py                Expand collapsed sequences back to reads
     utils.py                     Shared helpers (transparent gzip input)
@@ -376,6 +391,7 @@ rust/                            Rust implementation (dame binary)
     sort.rs                      Demultiplex reads by tag+primer
     filter.rs                    Filter amplicons across PCR replicates
     chimera_check.rs             Chimera detection via usearch
+    convert.rs                   Convert FilteredReads.fna to USEARCH/sumaclust format
     rsi.rs                       Renkonen Similarity Index
     decollapse.rs                Expand collapsed sequences back to reads
   tests/                         Rust integration tests (one file per subcommand)
