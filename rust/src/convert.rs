@@ -1,6 +1,8 @@
 use anyhow::Result;
 use clap::Args;
-use std::io::{BufRead, Write};
+use std::collections::HashMap;
+use std::fs::{self, File};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 
 #[derive(Args)]
 pub struct ConvertArgs {
@@ -17,18 +19,102 @@ pub struct ConvertArgs {
 }
 
 pub fn run(args: ConvertArgs) -> Result<()> {
-    todo!()
+    let reader = BufReader::new(File::open(&args.in_fasta)?);
+    let out_name = if args.usearch {
+        "FilteredReads.forusearch.fna"
+    } else {
+        "FilteredReads.forsumaclust.fna"
+    };
+    let writer = BufWriter::new(File::create(out_name)?);
+
+    let sample_dir = if args.sample_fastas {
+        fs::create_dir_all("SampleFastas")?;
+        Some("SampleFastas")
+    } else {
+        None
+    };
+
+    process(reader, writer, args.min_length, args.max_length, args.usearch, sample_dir)
 }
 
 fn process<R: BufRead, W: Write>(
     reader: R,
-    writer: W,
+    mut writer: W,
     min_length: usize,
     max_length: Option<usize>,
     usearch: bool,
     sample_dir: Option<&str>,
 ) -> Result<()> {
-    todo!()
+    let mut sample_handles: HashMap<String, BufWriter<File>> = HashMap::new();
+    let mut counter: u64 = 1;
+
+    let mut lines = reader.lines();
+    while let Some(hdr_line) = lines.next() {
+        let hdr_line = hdr_line?;
+        if !hdr_line.starts_with('>') {
+            continue;
+        }
+        let seq_line = match lines.next() {
+            Some(l) => l?,
+            None => break,
+        };
+        let seq = seq_line.trim_end();
+
+        // Parse: >Sample TagPair counts_underscore
+        let toks: Vec<&str> = hdr_line.splitn(4, ' ').collect();
+        if toks.len() < 3 {
+            continue;
+        }
+        let sample = &toks[0][1..];
+        let size: u64 = toks[2]
+            .split('_')
+            .filter_map(|x| x.parse::<u64>().ok())
+            .sum();
+
+        if seq.len() < min_length {
+            continue;
+        }
+        if let Some(max_len) = max_length {
+            if seq.len() > max_len {
+                continue;
+            }
+        }
+
+        let out_hdr: String;
+        let out_seq: String;
+        if usearch {
+            out_hdr = format!(">{};size={}", sample, size);
+            out_seq = if let Some(max_len) = max_length {
+                let mut s = seq.to_string();
+                while s.len() < max_len {
+                    s.push('N');
+                }
+                s
+            } else {
+                seq.to_string()
+            };
+        } else {
+            out_hdr = format!(">{}:{} count={}", sample, counter, size);
+            out_seq = seq.to_string();
+            counter += 1;
+        }
+
+        writeln!(writer, "{}", out_hdr)?;
+        writeln!(writer, "{}", out_seq)?;
+
+        if let Some(dir) = sample_dir {
+            if !sample_handles.contains_key(sample) {
+                let path = format!("{}/{}.fixed.fasta", dir, sample);
+                let fh = BufWriter::new(File::create(path)?);
+                sample_handles.insert(sample.to_string(), fh);
+            }
+            let fh = sample_handles.get_mut(sample).unwrap();
+            writeln!(fh, "{}", out_hdr)?;
+            writeln!(fh, "{}", out_seq)?;
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
