@@ -171,3 +171,15 @@ def test_convert_argparser_legacy_flags(tmp_path):
     assert args2.in_fasta == "y.fna"
     assert args2.min_length == 3
     assert args2.max_length == 200
+
+
+def test_sample_fastas_usearch_padded(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    fna = write_fna(tmp_path)
+    convert(fna, usearch=True, max_length=65, sample_fastas=True)
+    assert os.path.isfile("SampleFastas/Sample1.fixed.fasta")
+    s1 = open("SampleFastas/Sample1.fixed.fasta").readlines()
+    # Sample1 record 1: 60-nt seq padded to 65
+    assert s1[0] == ">Sample1;size=9\n"
+    assert s1[1].rstrip("\n") == "ATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG" + "N" * 5
+    assert len(s1[1].rstrip("\n")) == 65
