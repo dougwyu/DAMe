@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use dame::{chimera_check, decollapse, filter, rsi, sort};
+use dame::{chimera_check, convert, decollapse, filter, rsi, sort};
 
 #[derive(Parser)]
 #[command(name = "dame", about = "DNA Metabarcoding toolkit")]
@@ -16,6 +16,7 @@ enum Commands {
     Filter(filter::FilterArgs),
     Decollapse(decollapse::DecollapseArgs),
     Rsi(rsi::RsiArgs),
+    Convert(convert::ConvertArgs),
 }
 
 fn main() -> Result<()> {
@@ -26,5 +27,6 @@ fn main() -> Result<()> {
         Commands::Filter(args) => filter::run(args),
         Commands::Decollapse(args) => decollapse::run(args),
         Commands::Rsi(args) => rsi::run(args),
+        Commands::Convert(args) => convert::run(args),
     }
 }
