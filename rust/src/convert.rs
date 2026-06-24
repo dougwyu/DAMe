@@ -61,7 +61,7 @@ fn process<R: BufRead, W: Write>(
         let seq = seq_line.trim_end();
 
         // Parse: >Sample TagPair counts_underscore
-        let toks: Vec<&str> = hdr_line.splitn(4, ' ').collect();
+        let toks: Vec<&str> = hdr_line.split_whitespace().collect();
         if toks.len() < 3 {
             continue;
         }
