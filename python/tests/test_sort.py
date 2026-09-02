@@ -293,3 +293,48 @@ def test_sort_empty_sequence_line_does_not_truncate(tmp_path, monkeypatch):
     summary = (tmp_path / "SummaryCounts.txt").read_text().splitlines()
     assert len(summary) == 2, summary          # header + one tag pair
     assert summary[1].split("\t")[3] == "2"    # SumTotalFreq counts r1 and r3
+
+
+def test_readTags_rejects_duplicate_sequence(tmp_path):
+    """A repeated tag sequence is refused rather than silently resolved.
+
+    The name a read is assigned to would otherwise depend on lookup order, and
+    that name becomes an output filename.
+    """
+    tags_file = tmp_path / "tags.txt"
+    tags_file.write_text("AAAA\tTag1\nCCCC\tTag2\nAAAA\tTagX\n")
+    with pytest.raises(ValueError) as exc:
+        readTags(str(tags_file), {})
+    msg = str(exc.value)
+    assert "duplicate tag sequence 'AAAA'" in msg
+    assert "'Tag1'" in msg and "'TagX'" in msg
+    assert "line 3" in msg
+
+
+def test_readTags_allows_repeated_name_with_distinct_sequences(tmp_path):
+    """Only repeated sequences are refused; the check must not fire on names."""
+    tags_file = tmp_path / "tags.txt"
+    tags_file.write_text("AAAA\tTag1\nCCCC\tTag1\n")
+    result = readTags(str(tags_file), {})
+    assert result["Tag1"][0] == "AAAA"
+
+
+def test_sort_exits_nonzero_on_duplicate_tag_sequence(tmp_path, monkeypatch):
+    tags_file = tmp_path / "tags.txt"
+    tags_file.write_text("AAAA\tTag1\nAAAA\tTagX\n")
+    primers_file = tmp_path / "primers.txt"
+    primers_file.write_text("CO1\tACGT\tTGCA\n")
+    fq = tmp_path / "in.fastq"
+    _write_fastq(fq, [("r1", "AAAAACGTATATTGCATTTT")])
+
+    monkeypatch.chdir(tmp_path)
+    from dame import sort as sort_mod
+    args = argparse.Namespace(
+        fq=str(fq), p=str(primers_file), t=str(tags_file),
+        keepPrimersSeq=False, primer_mismatches=0, tag_mismatches=0,
+    )
+    with pytest.raises(SystemExit) as exc:
+        sort_mod.run(args)
+    assert exc.value.code == 1
+    # Refused before writing anything.
+    assert not (tmp_path / "SummaryCounts.txt").exists()

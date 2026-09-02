@@ -76,11 +76,28 @@ def min_equal_length_tag_distance(TAGS):
 
 
 def readTags(tags, TAGS):
+    """Read a Tags file (TagSeq\\tTagName per line) into TAGS.
+
+    Raises ValueError if a tag sequence appears on more than one line. Which
+    name such a read is assigned to would otherwise depend on lookup order,
+    and the two implementations resolved it differently: this module scans
+    names in file order and takes the first match, while the Rust sequence
+    keyed map kept the last. The tag names become output filenames, so the
+    disagreement propagated silently through the rest of the pipeline.
+    """
+    seen = {}
     with open(tags) as f:
-        for line in f:
-            line = line.rstrip().split()
+        for lineno, raw in enumerate(f, 1):
+            line = raw.rstrip().split()
             if not line:
                 continue
+            if line[0] in seen:
+                raise ValueError(
+                    "duplicate tag sequence '%s' in %s (line %d): used by both "
+                    "'%s' and '%s'. Tag sequences must be unique."
+                    % (line[0], tags, lineno, seen[line[0]], line[1])
+                )
+            seen[line[0]] = line[1]
             if line[1] not in TAGS:
                 TAGS[line[1]] = []
             TAGS[line[1]].append(line[0])

@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::Args;
 use indexmap::IndexMap;
 use ahash::HashMap;
@@ -192,8 +192,12 @@ pub fn read_tags(path: &str) -> Result<TagLookup> {
     let mut fwd_list: Vec<(Vec<u8>, String)> = Vec::new();
     let mut rc_list: Vec<(Vec<u8>, String)> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // Tag sequence -> the name that claimed it, for the uniqueness check below.
+    let mut seen_seq: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
 
-    for line in reader.lines() {
+    for (lineno, line) in reader.lines().enumerate() {
+        let lineno = lineno + 1;
         let line = line?;
         let line = line.trim();
         if line.is_empty() {
@@ -205,6 +209,17 @@ pub fn read_tags(path: &str) -> Result<TagLookup> {
         }
         let seq = parts[0];
         let name = parts[1];
+        // A repeated sequence makes the tag name, and so the output filename,
+        // depend on lookup order: this map kept the last name while dame-py
+        // took the first. Refuse the file rather than pick one silently.
+        if let Some(prev) = seen_seq.get(seq) {
+            return Err(anyhow!(
+                "duplicate tag sequence '{}' in {} (line {}): used by both \
+                 '{}' and '{}'. Tag sequences must be unique.",
+                seq, path, lineno, prev, name
+            ));
+        }
+        seen_seq.insert(seq.to_string(), name.to_string());
         by_fwd.insert(seq.as_bytes().to_vec(), name.to_string());
         by_rc.insert(rc(seq).as_bytes().to_vec(), name.to_string());
         if seen.insert(name.to_string()) {

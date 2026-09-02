@@ -675,3 +675,30 @@ fn test_read_primers_consecutive_tabs() {
     assert_eq!(entry.start_primers[0], b"ACGT".to_vec());
     assert!(!entry.start_primers[0].is_empty(), "forward primer must not be empty");
 }
+
+#[test]
+fn test_read_tags_rejects_duplicate_sequence() {
+    // A repeated tag sequence made the tag name, and so the output filename,
+    // depend on lookup order. Both implementations now refuse the file.
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("tags.txt");
+    std::fs::write(&path, "AAAA\tTag1\nCCCC\tTag2\nAAAA\tTagX\n").unwrap();
+    let err = match read_tags(path.to_str().unwrap()) {
+        Ok(_) => panic!("expected an error for a duplicated tag sequence"),
+        Err(e) => e.to_string(),
+    };
+    assert!(err.contains("duplicate tag sequence 'AAAA'"), "got: {err}");
+    assert!(err.contains("'Tag1'") && err.contains("'TagX'"), "got: {err}");
+    assert!(err.contains("line 3"), "got: {err}");
+}
+
+#[test]
+fn test_read_tags_allows_repeated_name_with_distinct_sequences() {
+    // Only repeated sequences are refused; the check must not fire on names.
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("tags.txt");
+    std::fs::write(&path, "AAAA\tTag1\nCCCC\tTag1\n").unwrap();
+    let tags = read_tags(path.to_str().unwrap()).unwrap();
+    assert_eq!(tags.by_fwd.get(b"AAAA".as_ref()).map(|s| s.as_str()), Some("Tag1"));
+    assert_eq!(tags.by_fwd.get(b"CCCC".as_ref()).map(|s| s.as_str()), Some("Tag1"));
+}

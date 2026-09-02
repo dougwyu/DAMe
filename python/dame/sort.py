@@ -33,7 +33,13 @@ def run(args):
     HAP = {}
     CountErrors = 0
 
-    TAGS = readTags(args.t, TAGS)
+    try:
+        TAGS = readTags(args.t, TAGS)
+    except ValueError as exc:
+        # Refuse to sort rather than assign reads to an arbitrary one of the
+        # duplicated tag names. Message and exit status match the Rust binary.
+        print("Error: %s" % exc, file=sys.stderr)
+        sys.exit(1)
     PRIMERS = readPrimers(args.p, PRIMERS)
 
     if args.tag_mismatches > 0:

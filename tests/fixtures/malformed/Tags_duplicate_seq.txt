@@ -1,0 +1,5 @@
+AAAA	Tag1
+CCCC	Tag2
+GGGG	Tag3
+TTTT	Tag4
+AAAA	TagX

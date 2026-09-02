@@ -170,4 +170,34 @@ diff <(cut -f1 "$WORK/rs_py/RSI_output.txt") <(cut -f1 "$WORK/rs_rs/RSI_output.t
     || fail "rsi sample order differs on a space-separated file"
 echo "PASS: rsi, space separated"
 
+echo "==> sort refuses a tags file with a duplicated sequence..."
+# Not recoverable: the tag name, and so the output filename, would depend on
+# lookup order. Both implementations must refuse, with the same message, and
+# must not leave partial output behind.
+for impl in py rs; do
+    d="$WORK/dup_$impl"; mkdir -p "$d"
+    set +e
+    if [ "$impl" = "py" ]; then
+        (cd "$d" && $TIMEOUT dame-py sort --fq "$FIXTURES/sample.fastq" \
+            --primers "$FIXTURES/Primers.txt" --tags "$MALFORMED/Tags_duplicate_seq.txt" \
+            >stdout.txt 2>&1)
+    else
+        (cd "$d" && $TIMEOUT "$DAME_BIN" sort --fq "$FIXTURES/sample.fastq" \
+            --primers "$FIXTURES/Primers.txt" --tags "$MALFORMED/Tags_duplicate_seq.txt" \
+            >stdout.txt 2>&1)
+    fi
+    rc=$?
+    set -e
+    [ "$rc" -ne 0 ] || fail "$impl sort accepted a duplicated tag sequence (rc=0)"
+    grep -q "duplicate tag sequence" "$d/stdout.txt" \
+        || fail "$impl sort: expected a duplicate tag sequence error, got: $(cat "$d/stdout.txt")"
+    # Nothing may be written: a partial run is worse than a refused one.
+    [ -f "$d/SummaryCounts.txt" ] && fail "$impl sort wrote SummaryCounts.txt despite refusing"
+done
+# Both must report the failure identically, so neither can drift on its own.
+diff <(grep "duplicate tag sequence" "$WORK/dup_py/stdout.txt") \
+     <(grep "duplicate tag sequence" "$WORK/dup_rs/stdout.txt") \
+    || fail "duplicate tag sequence: error messages differ between implementations"
+echo "PASS: sort, duplicate tag sequence refused"
+
 echo "PASS: dame and dame-py agree on malformed input"

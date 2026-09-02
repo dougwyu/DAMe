@@ -338,6 +338,11 @@ TTGGCCA	tag2
 ```
 (`TagSequence`, `TagName`)
 
+Tag sequences must be unique.  `sort` refuses a Tags file that repeats one,
+naming the sequence and the two tag names, because the name a read is assigned
+to would otherwise depend on lookup order and that name becomes an output
+filename.
+
 **PSinfo.txt** — one PCR replicate per line, tab-separated:
 ```
 Sample1	tag1	tag2	1
