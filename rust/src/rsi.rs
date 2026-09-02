@@ -72,7 +72,12 @@ pub fn run(args: RsiArgs) -> Result<()> {
     let num_cols = data[0].len();
     // Format: sample | F0-R0 | count0 | F1-R1 | count1 | ... | seq
     // no_rep = (num_cols - 2) / 2
-    let no_rep = (num_cols - 2) / 2;
+    // checked_sub guards the underflow: on a malformed file with fewer than two
+    // columns, plain `num_cols - 2` wraps to a huge usize, which defeats the
+    // `no_rep < 2` check below and loops effectively forever. Python computes
+    // this with floor division, yielding a negative no_rep that trips the same
+    // check, so mapping the underflow to 0 keeps the two implementations equal.
+    let no_rep = num_cols.checked_sub(2).map_or(0, |n| n / 2);
     if no_rep < 2 {
         println!("There are no replicates in the file.");
         return Ok(());

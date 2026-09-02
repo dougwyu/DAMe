@@ -95,3 +95,65 @@ fn test_run_rsi_produces_output() {
         contents
     );
 }
+
+// ── malformed input: too few columns ──────────────────────────────────────────
+// `(num_cols - 2)` underflows usize when a line has fewer than two fields,
+// producing a huge no_rep that defeated the `no_rep < 2` guard and looped
+// effectively forever. Python's floor division yields a negative no_rep and
+// exits cleanly, so these pin the Rust side to the same behaviour.
+
+#[test]
+fn test_single_column_input_returns_instead_of_hanging() {
+    let dir = tempdir().unwrap();
+    let input_path = dir.path().join("onecol.txt");
+    let output_path = dir.path().join("out.txt");
+    std::fs::write(&input_path, "Sample1\n").unwrap();
+
+    let args = RsiArgs {
+        input: input_path.to_str().unwrap().to_string(),
+        explicit: false,
+        output: Some(output_path.to_str().unwrap().to_string()),
+    };
+    run(args).expect("run should return cleanly on a single-column file");
+
+    // Bails out before writing any output, as Python does via sys.exit(0).
+    assert!(
+        !output_path.exists(),
+        "no output file should be written when there are no replicates"
+    );
+}
+
+#[test]
+fn test_too_few_columns_for_two_replicates() {
+    // 4 columns -> no_rep = 1, which is below the two-replicate minimum.
+    let dir = tempdir().unwrap();
+    let input_path = dir.path().join("narrow.txt");
+    let output_path = dir.path().join("out.txt");
+    std::fs::write(&input_path, "S1\tt1-t2\t10\tACGT\n").unwrap();
+
+    let args = RsiArgs {
+        input: input_path.to_str().unwrap().to_string(),
+        explicit: false,
+        output: Some(output_path.to_str().unwrap().to_string()),
+    };
+    run(args).expect("run should return cleanly");
+    assert!(!output_path.exists());
+}
+
+#[test]
+fn test_exactly_two_replicates_still_computed() {
+    // 6 columns -> no_rep = 2: the boundary case must still produce output.
+    let dir = tempdir().unwrap();
+    let input_path = dir.path().join("two.txt");
+    let output_path = dir.path().join("out.txt");
+    std::fs::write(&input_path, "S1\tt1-t2\t10\tt3-t4\t8\tACGT\n").unwrap();
+
+    let args = RsiArgs {
+        input: input_path.to_str().unwrap().to_string(),
+        explicit: false,
+        output: Some(output_path.to_str().unwrap().to_string()),
+    };
+    run(args).expect("run should succeed");
+    let contents = std::fs::read_to_string(&output_path).unwrap();
+    assert!(contents.contains("S1"), "got: {}", contents);
+}
