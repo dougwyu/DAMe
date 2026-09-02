@@ -53,7 +53,8 @@ and DNA positions in Python while counting differences. The Rust version
 performs the same kind of checks with compiled byte-level loops at fixed
 positions in each read. On this dataset that made Rust about 52× faster on the
 mismatch-enabled paths; the exact ratio can change with the tag panel, read
-layout and permitted mismatch count.
+layout and permitted mismatch count. (N.B. Upstream DAMe v1 does not have mismatch 
+capability and is therefore not in the table).
 
 | v3 sort mode | Python v3 | Rust v3 | Rust speedup |
 |---|---:|---:|---:|
