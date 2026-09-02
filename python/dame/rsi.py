@@ -1,8 +1,13 @@
 import sys
-import numpy as np
+
+
+def _numpy():
+    import numpy
+    return numpy
 
 
 def compare(matrix, j, a, b):
+    np = _numpy()
     print(f"Comparing replicates {a!r} and {b!r} from sample {j}")
     total = matrix.sum(axis=0)
     if total[0] == 0:
@@ -31,6 +36,7 @@ def register_subcommand(subparsers):
 
 
 def run(args):
+    np = _numpy()
     data = []
     with open(args.input) as f:
         for line in f:

@@ -1,6 +1,14 @@
 import pytest
 import numpy as np
+import subprocess
+import sys
 from dame.rsi import compare
+
+
+def test_importing_cli_does_not_import_numpy():
+    code = "import sys; import dame.__main__; assert 'numpy' not in sys.modules"
+    completed = subprocess.run([sys.executable, "-c", code], check=False)
+    assert completed.returncode == 0
 
 
 def test_compare_identical_replicates():
