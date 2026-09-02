@@ -1,9 +1,9 @@
 import pytest
 import os
-import tempfile
+from io import StringIO
 from dame.modules_filter import (
     makePSnumFiles, ReadPSnumFiles, MakeSampleNameArray,
-    ReadHapsForASample, getSeqsSetsAndFRcounts, MakeComparisonFile,
+    ReadHapsForASample, buildReplicateIndexes, allSequences, MakeComparisonFile,
 )
 
 
@@ -47,26 +47,51 @@ def test_makePSnumFiles_creates_files(tmp_path, monkeypatch):
     assert "pool1/Tag3_Tag4.txt" in open("PS2_files.txt").read()
 
 
-def test_getSeqsSetsAndFRcounts_empty():
-    haps = {"0": [], "1": []}
-    seqsALL, F, R, counts, seqs = getSeqsSetsAndFRcounts(2, haps)
-    assert seqsALL == set()
-    assert F == {}
-    assert R == {}
-
-
-def test_getSeqsSetsAndFRcounts_with_data():
+def test_buildReplicateIndexes_preserves_raw_first_count_and_union():
     haps = {
-        "0": [["CO1", "Tag1", "Tag2", "3", "AAAA"],
-              ["CO1", "Tag1", "Tag2", "1", "CCCC"]],
-        "1": [["CO1", "Tag1", "Tag2", "2", "AAAA"]],
+        "0": [["CO1", "Tag1", "Tag2", "007", "AAAA"],
+              ["CO1", "Tag1", "Tag2", "9", "AAAA"],
+              ["CO1", "Tag1", "Tag2", "bad", "CCCC"]],
+        "1": [["CO1", "Tag3", "Tag4", "2", "GGGG"]],
     }
-    seqsALL, F, R, counts, seqs = getSeqsSetsAndFRcounts(2, haps)
-    assert "AAAA" in seqsALL
-    assert "CCCC" in seqsALL
-    assert F["0"] == "Tag1"
-    assert R["0"] == "Tag2"
-    assert counts["0"] == ["3", "1"]
+    indexes = buildReplicateIndexes(2, haps)
+
+    assert indexes["0"]["forward_tag"] == "Tag1"
+    assert indexes["0"]["reverse_tag"] == "Tag2"
+    assert indexes["0"]["counts_by_sequence"] == {"AAAA": "007", "CCCC": "bad"}
+    assert allSequences(indexes) == {"AAAA", "CCCC", "GGGG"}
+
+
+def comparison_outputs(haps):
+    indexes = buildReplicateIndexes(1, haps)
+    outputs = [StringIO() for _ in range(7)]
+    MakeComparisonFile(
+        1, allSequences(indexes), haps, indexes, *outputs,
+        1, 1, 0, ["SampleA"], 0,
+    )
+    return outputs
+
+
+def test_MakeComparisonFile_round_trips_noncanonical_count_text():
+    haps = {"0": [["CO1", "Tag1", "Tag2", "007", "AAAA"]]}
+
+    outputs = comparison_outputs(haps)
+
+    assert outputs[0].getvalue() == "SampleA\tTag1-Tag2\t007\tAAAA\n"
+
+
+def test_MakeComparisonFile_invalid_count_still_raises_before_writing_row():
+    haps = {"0": [["CO1", "Tag1", "Tag2", "invalid", "AAAA"]]}
+    indexes = buildReplicateIndexes(1, haps)
+    outputs = [StringIO() for _ in range(7)]
+
+    with pytest.raises(ValueError, match="invalid literal"):
+        MakeComparisonFile(
+            1, allSequences(indexes), haps, indexes, *outputs,
+            1, 1, 0, ["SampleA"], 0,
+        )
+
+    assert outputs[0].getvalue() == ""
 
 
 # ── malformed PSinfo ──────────────────────────────────────────────────────────

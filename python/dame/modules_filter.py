@@ -62,27 +62,32 @@ def ReadHapsForASample(X, PSinsLines, i):
     return haps
 
 
-def getSeqsSetsAndFRcounts(X, haps):
-    F = {}
-    R = {}
-    counts = {}
-    seqs = {}
-    seqsALL = []
+def buildReplicateIndexes(X: int, haps: dict) -> dict:
+    indexes = {}
     for j in range(X):
-        if len(haps[str(j)]) != 0:
-            seqs[str(j)] = []
-            F[str(j)] = haps[str(j)][0][1]
-            R[str(j)] = haps[str(j)][0][2]
-            counts[str(j)] = []
-            for k in range(len(haps[str(j)])):
-                counts[str(j)].append(haps[str(j)][k][3])
-                seqs[str(j)].append(haps[str(j)][k][4])
-                seqsALL.append(haps[str(j)][k][4])
-    seqsALL = set(seqsALL)
-    return (seqsALL, F, R, counts, seqs)
+        rows = haps[str(j)]
+        if not rows:
+            continue
+        counts_by_sequence = {}
+        for row in rows:
+            counts_by_sequence.setdefault(row[4], row[3])
+        indexes[str(j)] = {
+            "forward_tag": rows[0][1],
+            "reverse_tag": rows[0][2],
+            "counts_by_sequence": counts_by_sequence,
+        }
+    return indexes
 
 
-def MakeComparisonFile(X, seqsALL, haps, F, R, counts, seqs,
+def allSequences(indexes: dict) -> set[str]:
+    return {
+        sequence
+        for replicate in indexes.values()
+        for sequence in replicate["counts_by_sequence"]
+    }
+
+
+def MakeComparisonFile(X, seqsALL, haps, indexes,
                        OUT, OUTthresh, OUTYX, OUT_fas, OUTthresh_fas,
                        OUTYX_fas, OUTthreshLen_fas, Y, T, L, sampleName, i):
     idnum = 1
@@ -97,20 +102,22 @@ def MakeComparisonFile(X, seqsALL, haps, F, R, counts, seqs,
         t = 0
         for j in range(X):
             if len(haps[str(j)]) != 0:
-                pos = [pos for pos, s in enumerate(seqs[str(j)]) if seq == s]
-                if len(pos) == 0:
+                replicate = indexes[str(j)]
+                count = replicate["counts_by_sequence"].get(seq)
+                if count is None:
                     count = 0
                 else:
                     y += 1
-                    count = counts[str(j)][pos[0]]
                     if int(count) < T:
                         t += 1
-                line = line + F[str(j)] + "-" + R[str(j)] + "\t" + str(count) + "\t"
+                F = replicate["forward_tag"]
+                R = replicate["reverse_tag"]
+                line = line + F + "-" + R + "\t" + str(count) + "\t"
                 if j < (X - 1):
-                    lineFasIDs = lineFasIDs + F[str(j)] + "-" + R[str(j)] + "."
+                    lineFasIDs = lineFasIDs + F + "-" + R + "."
                     lineFasCounts = lineFasCounts + str(count) + "_"
                 else:
-                    lineFasIDs = lineFasIDs + F[str(j)] + "-" + R[str(j)] + "_" + str(idnum) + "\t"
+                    lineFasIDs = lineFasIDs + F + "-" + R + "_" + str(idnum) + "\t"
                     lineFasCounts = lineFasCounts + str(count) + "\n" + seq
             if len(haps[str(j)]) == 0:
                 line = line + "empty\t0\t"

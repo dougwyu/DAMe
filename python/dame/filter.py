@@ -1,6 +1,6 @@
 from dame.modules_filter import (
     makePSnumFiles, ReadPSnumFiles, MakeSampleNameArray,
-    ReadHapsForASample, getSeqsSetsAndFRcounts, MakeComparisonFile,
+    ReadHapsForASample, buildReplicateIndexes, allSequences, MakeComparisonFile,
 )
 
 
@@ -46,8 +46,9 @@ def run(args):
 
     for i in range(len(PSinsLines["0"])):
         haps = ReadHapsForASample(X, PSinsLines, i)
-        seqsALL, F, R, counts, seqs = getSeqsSetsAndFRcounts(X, haps)
-        MakeComparisonFile(X, seqsALL, haps, F, R, counts, seqs,
+        indexes = buildReplicateIndexes(X, haps)
+        seqsALL = allSequences(indexes)
+        MakeComparisonFile(X, seqsALL, haps, indexes,
                            OUT, OUTthresh, OUTYX, OUT_fas, OUTthresh_fas,
                            OUTYX_fas, OUTthreshLen_fas, Y, T, L, sampleName, i)
 
