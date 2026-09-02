@@ -35,12 +35,12 @@ def run(args):
 
     try:
         TAGS = readTags(args.t, TAGS)
+        PRIMERS = readPrimers(args.p, PRIMERS)
     except ValueError as exc:
-        # Refuse to sort rather than assign reads to an arbitrary one of the
-        # duplicated tag names. Message and exit status match the Rust binary.
+        # Refuse to sort rather than resolve a malformed tags or primers file
+        # arbitrarily. Message and exit status match the Rust binary.
         print("Error: %s" % exc, file=sys.stderr)
         sys.exit(1)
-    PRIMERS = readPrimers(args.p, PRIMERS)
 
     if args.tag_mismatches > 0:
         min_d = min_equal_length_tag_distance(TAGS)

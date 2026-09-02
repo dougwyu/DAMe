@@ -131,11 +131,40 @@ def readTags(tags, TAGS):
 
 
 def readPrimers(primers, PRIMERS):
+    """Read a Primers file (Name\\tForwardSeq\\tReverseSeq per line) into PRIMERS.
+
+    Raises ValueError on an incomplete entry or a repeated primer set name.
+
+    Skipping an incomplete entry would drop a primer set, and with no primer
+    left to match, every read fails. A repeated name was resolved differently
+    by each implementation: only PRIMERS[name][0][0:2] is ever consulted here,
+    so the first definition won, while the Rust IndexMap insert replaced the
+    entry and the last won. On a two-line CO1 file that was 4 reads sorted
+    versus none at all.
+
+    Sequences are deliberately not checked for uniqueness: two primer sets
+    sharing a forward or reverse sequence is a legitimate multiplex design, and
+    both implementations return the first matching set, so they agree.
+    """
+    seen_name = {}
     with open(primers) as f:
-        for line in f:
-            line = line.rstrip().split()
+        for lineno, raw in enumerate(f, 1):
+            line = raw.rstrip().split()
             if not line:
                 continue
+            if len(line) < 3:
+                raise ValueError(
+                    "incomplete primer entry in %s (line %d): expected a name, "
+                    "a forward sequence and a reverse sequence, found '%s'."
+                    % (primers, lineno, raw.strip())
+                )
+            if line[0] in seen_name:
+                raise ValueError(
+                    "duplicate primer set name '%s' in %s (line %d): defined "
+                    "with both '%s' and '%s/%s'. Primer set names must be unique."
+                    % (line[0], primers, lineno, seen_name[line[0]], line[1], line[2])
+                )
+            seen_name[line[0]] = "%s/%s" % (line[1], line[2])
             if line[0] not in PRIMERS:
                 PRIMERS[line[0]] = [[], []]
             F = line[1]

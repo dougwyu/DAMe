@@ -208,4 +208,33 @@ check_tags_refused duplicate_sequence "$MALFORMED/Tags_duplicate_seq.txt"  "dupl
 check_tags_refused duplicate_name     "$MALFORMED/Tags_duplicate_name.txt" "duplicate tag name"
 check_tags_refused incomplete_entry  "$MALFORMED/Tags_short_line.txt"     "incomplete tag entry"
 
+# Same treatment for the primers file. A dropped primer set is worse than a
+# dropped tag: with nothing left to match, every read fails.
+check_primers_refused() {
+    local case="$1" primerfile="$2" expect="$3"
+    for impl in py rs; do
+        local d="$WORK/${case}_$impl"; mkdir -p "$d"
+        set +e
+        if [ "$impl" = "py" ]; then
+            (cd "$d" && $TIMEOUT dame-py sort --fq "$FIXTURES/sample.fastq" \
+                --primers "$primerfile" --tags "$FIXTURES/Tags.txt" >stdout.txt 2>&1)
+        else
+            (cd "$d" && $TIMEOUT "$DAME_BIN" sort --fq "$FIXTURES/sample.fastq" \
+                --primers "$primerfile" --tags "$FIXTURES/Tags.txt" >stdout.txt 2>&1)
+        fi
+        local rc=$?
+        set -e
+        [ "$rc" -ne 0 ] || fail "$impl sort accepted $case (rc=0)"
+        grep -q "$expect" "$d/stdout.txt" \
+            || fail "$impl sort: expected \"$expect\", got: $(cat "$d/stdout.txt")"
+        [ -f "$d/SummaryCounts.txt" ] && fail "$impl sort wrote SummaryCounts.txt despite refusing"
+    done
+    diff <(grep "$expect" "$WORK/${case}_py/stdout.txt") \
+         <(grep "$expect" "$WORK/${case}_rs/stdout.txt") \
+        || fail "$case: error messages differ between implementations"
+    echo "PASS: sort, $case refused"
+}
+check_primers_refused primers_duplicate_name "$MALFORMED/Primers_duplicate_name.txt" "duplicate primer set name"
+check_primers_refused primers_incomplete     "$MALFORMED/Primers_short_line.txt"     "incomplete primer entry"
+
 echo "PASS: dame and dame-py agree on malformed input"

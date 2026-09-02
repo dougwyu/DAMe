@@ -331,6 +331,10 @@ CO1	GCRTGC	CTGACT
 ```
 (`Name`, `ForwardSeq`, `ReverseSeq`; IUPAC ambiguity codes supported)
 
+Every line must give all three fields and each primer set name must be unique;
+`sort` refuses a Primers file that breaks either rule.  Two sets may share a
+forward or reverse sequence, which is a legitimate multiplex design.
+
 **Tags.txt** — one tag per line, tab-separated:
 ```
 AACCGGT	tag1

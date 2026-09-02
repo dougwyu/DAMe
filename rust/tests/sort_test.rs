@@ -736,3 +736,41 @@ fn test_read_tags_rejects_incomplete_entry() {
     assert!(err.contains("line 3"), "got: {err}");
     assert!(err.contains("'GGGG'"), "got: {err}");
 }
+
+#[test]
+fn test_read_primers_rejects_incomplete_entry() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("primers.txt");
+    std::fs::write(&path, "CO1\tACGT\tTGCA\nCO2\tGGGG\n").unwrap();
+    let err = match read_primers(path.to_str().unwrap()) {
+        Ok(_) => panic!("expected an error for an incomplete primer entry"),
+        Err(e) => e.to_string(),
+    };
+    assert!(err.contains("incomplete primer entry"), "got: {err}");
+    assert!(err.contains("line 2"), "got: {err}");
+}
+
+#[test]
+fn test_read_primers_rejects_duplicate_name() {
+    // This map insert replaced the entry, so the last definition won, while
+    // dame-py only ever consulted the first.
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("primers.txt");
+    std::fs::write(&path, "CO1\tACGT\tTGCA\nCO1\tGGGG\tCCCC\n").unwrap();
+    let err = match read_primers(path.to_str().unwrap()) {
+        Ok(_) => panic!("expected an error for a duplicated primer set name"),
+        Err(e) => e.to_string(),
+    };
+    assert!(err.contains("duplicate primer set name 'CO1'"), "got: {err}");
+    assert!(err.contains("'ACGT/TGCA'") && err.contains("'GGGG/CCCC'"), "got: {err}");
+}
+
+#[test]
+fn test_read_primers_allows_shared_sequence_across_sets() {
+    // Two sets sharing a forward primer is a legitimate multiplex design.
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("primers.txt");
+    std::fs::write(&path, "CO1\tACGT\tTGCA\nCO2\tACGT\tGGGG\n").unwrap();
+    let primers = read_primers(path.to_str().unwrap()).unwrap();
+    assert_eq!(primers.len(), 2);
+}

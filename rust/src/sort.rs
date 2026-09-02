@@ -281,19 +281,40 @@ pub fn read_primers(path: &str) -> Result<IndexMap<String, PrimerEntry>> {
     let reader = BufReader::new(file);
     let mut primers: IndexMap<String, PrimerEntry> = IndexMap::new();
 
-    for line in reader.lines() {
+    // Primer set name -> the pair that claimed it, for the uniqueness check.
+    let mut seen_name: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+
+    for (lineno, line) in reader.lines().enumerate() {
+        let lineno = lineno + 1;
         let line = line?;
         let line = line.trim();
         if line.is_empty() {
             continue;
         }
         let parts: Vec<&str> = line.split_whitespace().collect();
+        // Skipping an incomplete entry would drop a primer set, leaving nothing
+        // for reads to match against. Refuse instead.
         if parts.len() < 3 {
-            continue;
+            return Err(anyhow!(
+                "incomplete primer entry in {} (line {}): expected a name, a \
+                 forward sequence and a reverse sequence, found '{}'.",
+                path, lineno, line
+            ));
         }
         let name = parts[0];
         let f_raw = parts[1];
         let r_raw = parts[2];
+        // A repeated name silently replaced the entry here while dame-py kept
+        // the first definition, so the two sorted different reads entirely.
+        if let Some(prev) = seen_name.get(name) {
+            return Err(anyhow!(
+                "duplicate primer set name '{}' in {} (line {}): defined with \
+                 both '{}' and '{}/{}'. Primer set names must be unique.",
+                name, path, lineno, prev, f_raw, r_raw
+            ));
+        }
+        seen_name.insert(name.to_string(), format!("{}/{}", f_raw, r_raw));
 
         let frc = rc(f_raw);
         let rrc = rc(r_raw);

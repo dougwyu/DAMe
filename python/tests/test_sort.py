@@ -372,3 +372,40 @@ def test_readTags_rejects_incomplete_entry(tmp_path):
     assert "incomplete tag entry" in msg
     assert "line 3" in msg
     assert "'GGGG'" in msg
+
+
+def test_readPrimers_rejects_incomplete_entry(tmp_path):
+    """A primer line missing the reverse sequence is refused, not skipped.
+
+    Skipping would drop the primer set, leaving nothing for reads to match.
+    """
+    f = tmp_path / "primers.txt"
+    f.write_text("CO1\tACGT\tTGCA\nCO2\tGGGG\n")
+    with pytest.raises(ValueError) as exc:
+        readPrimers(str(f), {})
+    msg = str(exc.value)
+    assert "incomplete primer entry" in msg
+    assert "line 2" in msg
+
+
+def test_readPrimers_rejects_duplicate_name(tmp_path):
+    """A repeated primer set name is refused.
+
+    Only PRIMERS[name][0][0:2] is consulted here so the first definition won,
+    while Rust's IndexMap insert replaced the entry and the last won.
+    """
+    f = tmp_path / "primers.txt"
+    f.write_text("CO1\tACGT\tTGCA\nCO1\tGGGG\tCCCC\n")
+    with pytest.raises(ValueError) as exc:
+        readPrimers(str(f), {})
+    msg = str(exc.value)
+    assert "duplicate primer set name 'CO1'" in msg
+    assert "'ACGT/TGCA'" in msg and "'GGGG/CCCC'" in msg
+
+
+def test_readPrimers_allows_shared_sequence_across_sets(tmp_path):
+    """Two sets sharing a forward primer is a legitimate multiplex design."""
+    f = tmp_path / "primers.txt"
+    f.write_text("CO1\tACGT\tTGCA\nCO2\tACGT\tGGGG\n")
+    result = readPrimers(str(f), {})
+    assert sorted(result) == ["CO1", "CO2"]
