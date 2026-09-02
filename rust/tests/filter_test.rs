@@ -1,6 +1,6 @@
 use ahash::HashMap;
 use dame::filter::{
-    get_seqs_sets_and_fr_counts, make_ps_num_files, make_sample_name_array, read_ps_num_files,
+    all_sequences, index_haps, make_ps_num_files, make_sample_name_array, read_ps_num_files,
 };
 use std::io::Write;
 use std::sync::Mutex;
@@ -108,7 +108,7 @@ fn test_read_ps_num_files_returns_lines() {
 }
 
 #[test]
-fn test_get_seqs_sets_and_fr_counts_empty() {
+fn test_index_haps_empty_replicates_have_no_index_or_sequences() {
     let haps: HashMap<usize, Vec<Vec<String>>> = {
         let mut m = HashMap::default();
         m.insert(0, vec![]);
@@ -116,17 +116,13 @@ fn test_get_seqs_sets_and_fr_counts_empty() {
         m
     };
 
-    let (seqs_all, f, r, counts, seqs) = get_seqs_sets_and_fr_counts(2, &haps);
-
-    assert!(seqs_all.is_empty(), "seqs_all should be empty");
-    assert!(f.is_empty(), "f should be empty");
-    assert!(r.is_empty(), "r should be empty");
-    assert!(counts.is_empty(), "counts should be empty");
-    assert!(seqs.is_empty(), "seqs should be empty");
+    let index = index_haps(2, &haps);
+    assert!(index.is_empty());
+    assert!(all_sequences(&index).is_empty());
 }
 
 #[test]
-fn test_get_seqs_sets_and_fr_counts_with_data() {
+fn test_index_haps_builds_union_and_preserves_count_behavior() {
     let haps: HashMap<usize, Vec<Vec<String>>> = {
         let mut m = HashMap::default();
         m.insert(
@@ -136,15 +132,29 @@ fn test_get_seqs_sets_and_fr_counts_with_data() {
                     "CO1".to_string(),
                     "Tag1".to_string(),
                     "Tag2".to_string(),
-                    "3".to_string(),
+                    "7".to_string(),
                     "AAAA".to_string(),
                 ],
                 vec![
                     "CO1".to_string(),
                     "Tag1".to_string(),
                     "Tag2".to_string(),
-                    "1".to_string(),
+                    "9".to_string(),
+                    "AAAA".to_string(),
+                ],
+                vec![
+                    "CO1".to_string(),
+                    "Tag1".to_string(),
+                    "Tag2".to_string(),
+                    "not-a-count".to_string(),
                     "CCCC".to_string(),
+                ],
+                vec![
+                    "CO1".to_string(),
+                    "Tag1".to_string(),
+                    "Tag2".to_string(),
+                    "-1".to_string(),
+                    "GGGG".to_string(),
                 ],
             ],
         );
@@ -155,17 +165,54 @@ fn test_get_seqs_sets_and_fr_counts_with_data() {
                 "Tag1".to_string(),
                 "Tag2".to_string(),
                 "2".to_string(),
-                "AAAA".to_string(),
+                "TTTT".to_string(),
             ]],
         );
         m
     };
 
-    let (seqs_all, f, r, counts, _seqs) = get_seqs_sets_and_fr_counts(2, &haps);
+    let index = index_haps(2, &haps);
+    assert_eq!(index[&0].forward_tag, "Tag1");
+    assert_eq!(index[&0].reverse_tag, "Tag2");
+    assert_eq!(index[&0].counts_by_sequence["AAAA"], 7);
+    assert_eq!(index[&0].counts_by_sequence["CCCC"], 0);
+    assert_eq!(index[&0].counts_by_sequence["GGGG"], -1_i64);
+    assert_eq!(
+        index[&0]
+            .counts_by_sequence
+            .get("missing")
+            .copied()
+            .unwrap_or(0),
+        0
+    );
+    assert_eq!(
+        all_sequences(&index),
+        ["AAAA", "CCCC", "GGGG", "TTTT"].into_iter().collect()
+    );
+}
 
-    assert!(seqs_all.contains("AAAA"), "seqs_all should contain AAAA");
-    assert!(seqs_all.contains("CCCC"), "seqs_all should contain CCCC");
-    assert_eq!(f[&0], "Tag1");
-    assert_eq!(r[&0], "Tag2");
-    assert_eq!(counts[&0], vec!["3".to_string(), "1".to_string()]);
+#[test]
+fn test_index_haps_short_first_row_uses_empty_tags() {
+    let haps: HashMap<usize, Vec<Vec<String>>> = {
+        let mut m = HashMap::default();
+        m.insert(
+            0,
+            vec![
+                vec!["short".to_string()],
+                vec![
+                    "CO1".to_string(),
+                    "Tag1".to_string(),
+                    "Tag2".to_string(),
+                    "4".to_string(),
+                    "AAAA".to_string(),
+                ],
+            ],
+        );
+        m
+    };
+
+    let index = index_haps(1, &haps);
+    assert_eq!(index[&0].forward_tag, "");
+    assert_eq!(index[&0].reverse_tag, "");
+    assert_eq!(index[&0].counts_by_sequence["AAAA"], 4);
 }

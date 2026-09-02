@@ -138,69 +138,58 @@ pub fn read_haps_for_a_sample(
     Ok(haps)
 }
 
-/// Return type for `get_seqs_sets_and_fr_counts`: (seqs_all, F, R, counts, seqs)
-pub type SeqsSetsAndFRCounts = (
-    HashSet<String>,
-    HashMap<usize, String>,
-    HashMap<usize, String>,
-    HashMap<usize, Vec<String>>,
-    HashMap<usize, Vec<String>>,
-);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplicateIndex {
+    pub forward_tag: String,
+    pub reverse_tag: String,
+    pub counts_by_sequence: HashMap<String, i64>,
+}
 
-/// Builds the set of all unique sequences and per-replicate F, R, counts, seqs from haplotype data.
-///
-/// Returns: (seqs_all, F, R, counts, seqs)
-/// - seqs_all: HashSet of all unique sequences across all replicates
-/// - F: map of replicate index -> forward tag (tag1) from first row
-/// - R: map of replicate index -> reverse tag (tag2) from first row
-/// - counts: map of replicate index -> list of count strings
-/// - seqs: map of replicate index -> list of sequence strings
-pub fn get_seqs_sets_and_fr_counts(
-    x: usize,
-    haps: &HashMap<usize, Vec<Vec<String>>>,
-) -> SeqsSetsAndFRCounts {
-    let mut f: HashMap<usize, String> = HashMap::default();
-    let mut r: HashMap<usize, String> = HashMap::default();
-    let mut counts: HashMap<usize, Vec<String>> = HashMap::default();
-    let mut seqs: HashMap<usize, Vec<String>> = HashMap::default();
-    let mut seqs_all: HashSet<String> = HashSet::default();
+pub type SampleIndex = HashMap<usize, ReplicateIndex>;
 
+/// Index each non-empty replicate once, preserving the first duplicate row.
+pub fn index_haps(x: usize, haps: &HashMap<usize, Vec<Vec<String>>>) -> SampleIndex {
+    let mut index = SampleIndex::default();
     for j in 0..x {
-        if let Some(hap_j) = haps.get(&j) {
-            if !hap_j.is_empty() {
-                let mut j_seqs: Vec<String> = Vec::new();
-                let mut j_counts: Vec<String> = Vec::new();
-                // Get F and R from first row (columns 1 and 2)
-                if hap_j[0].len() > 2 {
-                    f.insert(j, hap_j[0][1].clone());
-                    r.insert(j, hap_j[0][2].clone());
-                }
-                for row in hap_j {
-                    if row.len() >= 5 {
-                        j_counts.push(row[3].clone());
-                        j_seqs.push(row[4].clone());
-                        seqs_all.insert(row[4].clone());
-                    }
-                }
-                counts.insert(j, j_counts);
-                seqs.insert(j, j_seqs);
-            }
+        let Some(rows) = haps.get(&j).filter(|rows| !rows.is_empty()) else {
+            continue;
+        };
+        let (forward_tag, reverse_tag) = if rows[0].len() > 2 {
+            (rows[0][1].clone(), rows[0][2].clone())
+        } else {
+            (String::new(), String::new())
+        };
+        let mut counts_by_sequence = HashMap::default();
+        for row in rows.iter().filter(|row| row.len() >= 5) {
+            let count = row[3].parse::<i64>().unwrap_or(0);
+            counts_by_sequence.entry(row[4].clone()).or_insert(count);
         }
+        index.insert(
+            j,
+            ReplicateIndex {
+                forward_tag,
+                reverse_tag,
+                counts_by_sequence,
+            },
+        );
     }
+    index
+}
 
-    (seqs_all, f, r, counts, seqs)
+/// Return every sequence present in at least one indexed replicate.
+pub fn all_sequences(index: &SampleIndex) -> HashSet<&str> {
+    index
+        .values()
+        .flat_map(|replicate| replicate.counts_by_sequence.keys().map(String::as_str))
+        .collect()
 }
 
 /// Writes comparison output files for all sequences of sample `i`.
 #[allow(clippy::too_many_arguments)]
 pub fn make_comparison_file(
     x: usize,
-    seqs_all: &HashSet<String>,
-    haps: &HashMap<usize, Vec<Vec<String>>>,
-    f: &HashMap<usize, String>,
-    r: &HashMap<usize, String>,
-    counts: &HashMap<usize, Vec<String>>,
-    seqs: &HashMap<usize, Vec<String>>,
+    seqs_all: &HashSet<&str>,
+    index: &SampleIndex,
     out: &mut dyn Write,
     out_thresh: &mut dyn Write,
     out_yx: &mut dyn Write,
@@ -217,10 +206,10 @@ pub fn make_comparison_file(
     let mut id_num: usize = 1;
 
     // Sort sequences for deterministic output
-    let mut seqs_sorted: Vec<&String> = seqs_all.iter().collect();
+    let mut seqs_sorted: Vec<&str> = seqs_all.iter().copied().collect();
     seqs_sorted.sort();
 
-    for seq in &seqs_sorted {
+    for seq in seqs_sorted {
         let sample = &sample_name[i];
         let mut line = format!("{}\t", sample);
         let mut line_fas_ids = format!(">{}\t", sample);
@@ -229,32 +218,19 @@ pub fn make_comparison_file(
         let mut t_count = 0usize;
 
         for j in 0..x {
-            let hap_j_empty = haps.get(&j).map(|v| v.is_empty()).unwrap_or(true);
-
-            if !hap_j_empty {
-                // Find position of seq in this replicate's seqs list
-                let pos = seqs
-                    .get(&j)
-                    .and_then(|sv| sv.iter().position(|s| s == *seq));
-
-                let count: i64 = if let Some(p) = pos {
+            if let Some(replicate) = index.get(&j) {
+                let count = if let Some(&count) = replicate.counts_by_sequence.get(seq) {
                     y_count += 1;
-                    let c_str = counts
-                        .get(&j)
-                        .and_then(|cv| cv.get(p))
-                        .map(|s| s.as_str())
-                        .unwrap_or("0");
-                    let c: i64 = c_str.parse().unwrap_or(0);
-                    if (c as u32) < t {
+                    if (count as u32) < t {
                         t_count += 1;
                     }
-                    c
+                    count
                 } else {
                     0
                 };
 
-                let fwd = f.get(&j).map(|s| s.as_str()).unwrap_or("");
-                let rev = r.get(&j).map(|s| s.as_str()).unwrap_or("");
+                let fwd = replicate.forward_tag.as_str();
+                let rev = replicate.reverse_tag.as_str();
 
                 line.push_str(&format!("{}-{}\t{}\t", fwd, rev, count));
 
@@ -337,15 +313,12 @@ pub fn run(args: FilterArgs) -> Result<()> {
     let num_samples = ps_ins_lines.get(&0).map(|v| v.len()).unwrap_or(0);
     for i in 0..num_samples {
         let haps = read_haps_for_a_sample(x, &ps_ins_lines, i)?;
-        let (seqs_all, f, r, counts, seqs) = get_seqs_sets_and_fr_counts(x, &haps);
+        let index = index_haps(x, &haps);
+        let seqs_all = all_sequences(&index);
         make_comparison_file(
             x,
             &seqs_all,
-            &haps,
-            &f,
-            &r,
-            &counts,
-            &seqs,
+            &index,
             &mut out,
             &mut out_thresh,
             &mut out_yx,
