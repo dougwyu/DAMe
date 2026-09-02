@@ -7,10 +7,13 @@ use std::process::Command;
 
 #[derive(Args)]
 pub struct ChimeraArgs {
+    /// Text file with tag combination info per PCR reaction per sample
     #[arg(long = "ps-info")]
     pub ps_info: String,
+    /// Number of PCR rxns performed per sample
     #[arg(long = "x")]
     pub x: usize,
+    /// Number of pools; with more than one, sort must have been run inside pool1/, pool2/, ...
     #[arg(long = "p", default_value = "1")]
     pub p: usize,
 }

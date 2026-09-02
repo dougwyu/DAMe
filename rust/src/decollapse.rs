@@ -5,8 +5,10 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 
 #[derive(Args)]
 pub struct DecollapseArgs {
+    /// Text file with tag combination and freq of each unique seq
     #[arg(long = "input")]
     pub input: String,
+    /// Output fasta file
     #[arg(long = "out-fas", default_value = "Decollapsed.fasta")]
     pub out_fas: String,
 }

@@ -7,9 +7,12 @@ use std::io::{BufRead, BufReader, Write};
 
 #[derive(Args)]
 pub struct RsiArgs {
+    /// Input comparison file
     pub input: String,
+    /// Output explicit RSI for every pairwise comparison
     #[arg(short = 'e', long = "explicit")]
     pub explicit: bool,
+    /// Write output to FILE [default RSI_output.txt]
     #[arg(short = 'o', long = "output")]
     pub output: Option<String>,
 }

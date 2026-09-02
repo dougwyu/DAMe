@@ -7,16 +7,22 @@ use std::io::{BufRead, BufReader, Write};
 
 #[derive(Args)]
 pub struct SortArgs {
+    /// Input fastq with amplicon sequences
     #[arg(long = "fq")]
     pub fastq: String,
+    /// Input text file with primer name and sequences [Format: Name\tForwardSeq\tReverseSeq]
     #[arg(long = "primers")]
     pub primers: String,
+    /// Input text file with tag names and sequences [Format: TagSeq\tTagName]
     #[arg(long = "tags")]
     pub tags: String,
+    /// Keep primer sequences instead of trimming them
     #[arg(long = "keep-primers-seq")]
     pub keep_primers_seq: bool,
+    /// Max substitutions allowed per primer match
     #[arg(short = 'm', long = "primer-mismatches", default_value = "0")]
     pub primer_mismatches: usize,
+    /// Max substitutions allowed per tag (tag1 and tag2 independently)
     #[arg(long = "tag-mismatches", default_value = "0")]
     pub tag_mismatches: usize,
 }

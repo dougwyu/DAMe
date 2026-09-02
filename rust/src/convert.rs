@@ -6,14 +6,19 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 
 #[derive(Args)]
 pub struct ConvertArgs {
+    /// Input FilteredReads.fna file
     #[arg(short = 'i', long = "in-fasta")]
     pub in_fasta: String,
+    /// Drop sequences shorter than N
     #[arg(long = "min-length", default_value_t = 0)]
     pub min_length: usize,
+    /// Drop sequences longer than N; pad to N in USEARCH mode
     #[arg(long = "max-length")]
     pub max_length: Option<usize>,
+    /// Write USEARCH output format (default: sumaclust)
     #[arg(short = 'u', long = "usearch")]
     pub usearch: bool,
+    /// Write per-sample fastas to SampleFastas/
     #[arg(short = 's', long = "sample-fastas")]
     pub sample_fastas: bool,
 }
