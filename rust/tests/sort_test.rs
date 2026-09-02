@@ -693,12 +693,30 @@ fn test_read_tags_rejects_duplicate_sequence() {
 }
 
 #[test]
-fn test_read_tags_allows_repeated_name_with_distinct_sequences() {
-    // Only repeated sequences are refused; the check must not fire on names.
+fn test_read_tags_rejects_duplicate_name() {
+    // A repeated name was half-honoured: matched on the exact path via by_fwd,
+    // invisible on the anchored path because fwd_list was deduplicated by name.
     let dir = tempdir().unwrap();
     let path = dir.path().join("tags.txt");
     std::fs::write(&path, "AAAA\tTag1\nCCCC\tTag1\n").unwrap();
+    let err = match read_tags(path.to_str().unwrap()) {
+        Ok(_) => panic!("expected an error for a duplicated tag name"),
+        Err(e) => e.to_string(),
+    };
+    assert!(err.contains("duplicate tag name 'Tag1'"), "got: {err}");
+    assert!(err.contains("'AAAA'") && err.contains("'CCCC'"), "got: {err}");
+    assert!(err.contains("line 2"), "got: {err}");
+}
+
+#[test]
+fn test_read_tags_accepts_a_well_formed_panel() {
+    // The checks must not fire on a normal one-to-one tags file, and fwd_list
+    // must still carry one entry per tag in file order.
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("tags.txt");
+    std::fs::write(&path, "AAAA\tTag1\nCCCC\tTag2\nGGGG\tTag3\n").unwrap();
     let tags = read_tags(path.to_str().unwrap()).unwrap();
-    assert_eq!(tags.by_fwd.get(b"AAAA".as_ref()).map(|s| s.as_str()), Some("Tag1"));
-    assert_eq!(tags.by_fwd.get(b"CCCC".as_ref()).map(|s| s.as_str()), Some("Tag1"));
+    assert_eq!(tags.fwd_list.len(), 3);
+    assert_eq!(tags.fwd_list[0], (b"AAAA".to_vec(), "Tag1".to_string()));
+    assert_eq!(tags.fwd_list[2], (b"GGGG".to_vec(), "Tag3".to_string()));
 }

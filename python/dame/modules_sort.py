@@ -78,26 +78,42 @@ def min_equal_length_tag_distance(TAGS):
 def readTags(tags, TAGS):
     """Read a Tags file (TagSeq\\tTagName per line) into TAGS.
 
-    Raises ValueError if a tag sequence appears on more than one line. Which
-    name such a read is assigned to would otherwise depend on lookup order,
-    and the two implementations resolved it differently: this module scans
+    Names and sequences must be one to one; ValueError is raised if either
+    repeats.
+
+    A repeated SEQUENCE makes the name a read is assigned to depend on lookup
+    order, and the implementations resolved it differently: this module scans
     names in file order and takes the first match, while the Rust sequence
-    keyed map kept the last. The tag names become output filenames, so the
+    keyed map kept the last. Tag names become output filenames, so the
     disagreement propagated silently through the rest of the pipeline.
+
+    A repeated NAME is worse, because only TAGS[name][0] is ever consulted:
+    every later sequence for that name is unreachable here, and reads carrying
+    it are counted as erroneous, indistinguishable from real tag errors. Rust
+    instead matched every such sequence on its exact path but only the first on
+    its anchored path, so it disagreed with this module and with itself.
     """
-    seen = {}
+    seen_seq = {}
+    seen_name = {}
     with open(tags) as f:
         for lineno, raw in enumerate(f, 1):
             line = raw.rstrip().split()
             if not line:
                 continue
-            if line[0] in seen:
+            if line[0] in seen_seq:
                 raise ValueError(
                     "duplicate tag sequence '%s' in %s (line %d): used by both "
                     "'%s' and '%s'. Tag sequences must be unique."
-                    % (line[0], tags, lineno, seen[line[0]], line[1])
+                    % (line[0], tags, lineno, seen_seq[line[0]], line[1])
                 )
-            seen[line[0]] = line[1]
+            if line[1] in seen_name:
+                raise ValueError(
+                    "duplicate tag name '%s' in %s (line %d): used by both "
+                    "'%s' and '%s'. Tag names must be unique."
+                    % (line[1], tags, lineno, seen_name[line[1]], line[0])
+                )
+            seen_seq[line[0]] = line[1]
+            seen_name[line[1]] = line[0]
             if line[1] not in TAGS:
                 TAGS[line[1]] = []
             TAGS[line[1]].append(line[0])

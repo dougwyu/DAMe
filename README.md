@@ -338,10 +338,12 @@ TTGGCCA	tag2
 ```
 (`TagSequence`, `TagName`)
 
-Tag sequences must be unique.  `sort` refuses a Tags file that repeats one,
-naming the sequence and the two tag names, because the name a read is assigned
-to would otherwise depend on lookup order and that name becomes an output
-filename.
+Names and sequences must be one to one: `sort` refuses a Tags file that repeats
+either, naming the line and both conflicting entries.  A repeated sequence
+would leave the tag a read is assigned to dependent on lookup order, and that
+name becomes an output filename.  A repeated name is worse: only the first
+sequence for it is ever matched, so reads carrying the others are silently
+counted as erroneous.
 
 **PSinfo.txt** — one PCR replicate per line, tab-separated:
 ```

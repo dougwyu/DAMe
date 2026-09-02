@@ -191,9 +191,11 @@ pub fn read_tags(path: &str) -> Result<TagLookup> {
     let mut by_rc: HashMap<Vec<u8>, String> = HashMap::default();
     let mut fwd_list: Vec<(Vec<u8>, String)> = Vec::new();
     let mut rc_list: Vec<(Vec<u8>, String)> = Vec::new();
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    // Tag sequence -> the name that claimed it, for the uniqueness check below.
+    // Names and sequences must be one to one. These record which name claimed a
+    // sequence, and which sequence claimed a name, for the checks below.
     let mut seen_seq: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    let mut seen_name: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();
 
     for (lineno, line) in reader.lines().enumerate() {
@@ -219,13 +221,26 @@ pub fn read_tags(path: &str) -> Result<TagLookup> {
                 seq, path, lineno, prev, name
             ));
         }
+        // A repeated name is only ever half-honoured: the exact path below
+        // matches every sequence carrying it, while the anchored path iterates
+        // fwd_list and would see just the first, so one binary gave two answers
+        // depending on whether mismatches were enabled. dame-py reached only
+        // the first sequence either way. Refuse the file instead.
+        if let Some(prev) = seen_name.get(name) {
+            return Err(anyhow!(
+                "duplicate tag name '{}' in {} (line {}): used by both \
+                 '{}' and '{}'. Tag names must be unique.",
+                name, path, lineno, prev, seq
+            ));
+        }
         seen_seq.insert(seq.to_string(), name.to_string());
+        seen_name.insert(name.to_string(), seq.to_string());
         by_fwd.insert(seq.as_bytes().to_vec(), name.to_string());
         by_rc.insert(rc(seq).as_bytes().to_vec(), name.to_string());
-        if seen.insert(name.to_string()) {
-            fwd_list.push((seq.as_bytes().to_vec(), name.to_string()));
-            rc_list.push((rc(seq).as_bytes().to_vec(), name.to_string()));
-        }
+        // Names are unique by the check above, so these lists need no
+        // deduplication: they stay in file order, one entry per tag.
+        fwd_list.push((seq.as_bytes().to_vec(), name.to_string()));
+        rc_list.push((rc(seq).as_bytes().to_vec(), name.to_string()));
     }
 
     Ok(TagLookup { by_fwd, by_rc, fwd_list, rc_list })

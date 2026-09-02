@@ -311,11 +311,29 @@ def test_readTags_rejects_duplicate_sequence(tmp_path):
     assert "line 3" in msg
 
 
-def test_readTags_allows_repeated_name_with_distinct_sequences(tmp_path):
-    """Only repeated sequences are refused; the check must not fire on names."""
+def test_readTags_rejects_duplicate_name(tmp_path):
+    """A repeated tag name is refused: names and sequences are one to one.
+
+    Only TAGS[name][0] is ever consulted, so a second sequence under the same
+    name was unreachable here while Rust matched it on the exact path but not
+    the anchored one.
+    """
     tags_file = tmp_path / "tags.txt"
     tags_file.write_text("AAAA\tTag1\nCCCC\tTag1\n")
+    with pytest.raises(ValueError) as exc:
+        readTags(str(tags_file), {})
+    msg = str(exc.value)
+    assert "duplicate tag name 'Tag1'" in msg
+    assert "'AAAA'" in msg and "'CCCC'" in msg
+    assert "line 2" in msg
+
+
+def test_readTags_accepts_a_well_formed_panel(tmp_path):
+    """The checks must not fire on a normal one-to-one tags file."""
+    tags_file = tmp_path / "tags.txt"
+    tags_file.write_text("AAAA\tTag1\nCCCC\tTag2\nGGGG\tTag3\n")
     result = readTags(str(tags_file), {})
+    assert sorted(result) == ["Tag1", "Tag2", "Tag3"]
     assert result["Tag1"][0] == "AAAA"
 
 
