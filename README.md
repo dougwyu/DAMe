@@ -361,6 +361,7 @@ bash tests/integration/run_sort_tag_mismatch.sh   # --tag-mismatches parity
 bash tests/integration/run_rsi.sh
 bash tests/integration/run_filter.sh
 bash tests/integration/run_convert.sh
+bash tests/integration/run_malformed.sh        # damaged-input parity
 bash tests/integration/run_decollapse.sh
 bash tests/integration/run_chimera.sh   # skips if usearch not found
 bash tests/integration/run_pipeline.sh

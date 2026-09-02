@@ -1,0 +1,2 @@
+sA t1-t2 10 t3-t4 8 ACGT
+sB t1-t2 5 t3-t4 7 TTTT
