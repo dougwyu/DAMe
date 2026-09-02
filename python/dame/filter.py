@@ -13,7 +13,9 @@ def register_subcommand(subparsers):
                    help="Text file with tag combination info per PCR reaction per sample")
     p.add_argument("-x", "--x", dest="x", type=int, default=2, help="Number of PCR rxns performed per sample")
     p.add_argument("-y", "--y", dest="y", type=int, default=1, help="Number of PCR rxns sequence must be present in")
-    p.add_argument("-p", "--p", dest="p", type=int, default=1, help="Number of pools [default 1]")
+    p.add_argument("-p", "--p", dest="p", type=int, default=1,
+                   help="Accepted for backward compatibility but ignored; the pool "
+                        "number is read from column 4 of PSinfo [default 1]")
     p.add_argument("-t", "--t", dest="t", type=int, default=1, help="Minimum count per unique sequence")
     p.add_argument("-l", "--l", dest="l", type=int, default=100, help="Minimum sequence length")
     p.add_argument("--chimeraChecked", "--chimera-checked", dest="chimeraChecked", action="store_true",

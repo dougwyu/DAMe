@@ -12,6 +12,7 @@ pub struct FilterArgs {
     pub x: usize,
     #[arg(long = "y", default_value = "1")]
     pub y: usize,
+    /// Accepted for backward compatibility but ignored; the pool number is read from column 4 of PSinfo
     #[arg(long = "p", default_value = "1")]
     pub p: usize,
     #[arg(long = "t", default_value = "1")]
