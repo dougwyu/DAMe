@@ -183,3 +183,32 @@ def test_sample_fastas_usearch_padded(tmp_path, monkeypatch):
     assert s1[0] == ">Sample1;size=9\n"
     assert s1[1].rstrip("\n") == "ATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG" + "N" * 5
     assert len(s1[1].rstrip("\n")) == 65
+
+
+# ── malformed headers ─────────────────────────────────────────────────────────
+# convert.rs skips a record whose header has fewer than three fields and ignores
+# unparseable count parts. These pin the Python side to the same behaviour.
+
+def test_short_header_is_skipped_not_fatal(tmp_path, monkeypatch):
+    fna = tmp_path / "in.fna"
+    fna.write_text(
+        ">Sample1 Tag1-Tag2_1 5_4\nACGTACGTACGT\n"
+        ">Sample2\nTTTTTTTTTTTT\n"
+        ">Sample3 Tag3-Tag4_1 2_2\nGGGGGGGGGGGG\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    convert(str(fna))
+    out = (tmp_path / "FilteredReads.forsumaclust.fna").read_text().splitlines()
+    # The bare ">Sample2" header and its sequence are dropped; the rest survive.
+    assert out == [
+        ">Sample1:1 count=9", "ACGTACGTACGT",
+        ">Sample3:2 count=4", "GGGGGGGGGGGG",
+    ]
+
+
+def test_unparseable_count_part_is_ignored(tmp_path):
+    fna = tmp_path / "in.fna"
+    fna.write_text(">Sample1 Tag1-Tag2_1 5_x_4\nACGT\n")
+    records = list(_parse_fasta(str(fna)))
+    # 5 + 4; the "x" is skipped rather than raising ValueError.
+    assert records == [("Sample1", 9, "ACGT")]

@@ -2,6 +2,21 @@
 import os
 
 
+def _sum_counts(field):
+    """Sum the underscore-separated per-replicate counts in a header field.
+
+    Unparseable parts are skipped rather than raising, mirroring the Rust
+    implementation's filter_map(|x| x.parse().ok()).
+    """
+    total = 0
+    for part in field.split("_"):
+        try:
+            total += int(part)
+        except ValueError:
+            continue
+    return total
+
+
 def _parse_fasta(path):
     """Yield (sample, size, sequence) tuples from a FilteredReads.fna file."""
     with open(path) as fh:
@@ -10,8 +25,16 @@ def _parse_fasta(path):
             line = line.rstrip("\n")
             if line.startswith(">"):
                 toks = line.split()
+                # A header needs at least sample, tag pair and counts. Skip the
+                # record instead of raising IndexError, as the Rust
+                # implementation does (convert.rs: `if toks.len() < 3`). The
+                # sequence line that follows is then ignored, because `header`
+                # stays None.
+                if len(toks) < 3:
+                    header = None
+                    continue
                 sample = toks[0][1:]
-                size = sum(int(x) for x in toks[2].split("_"))
+                size = _sum_counts(toks[2])
                 header = (sample, size)
             elif header is not None:
                 yield header[0], header[1], line
