@@ -1,4 +1,4 @@
-# DAMe v2.6: DNA Metabarcoding toolkit
+# DAMe v3.0.0: DNA Metabarcoding toolkit
 
 DAMe demultiplexes pooled metabarcoding / eDNA FASTQ reads by primer and
 tag sequences (**sort**), optionally removes chimeric sequences (**chimera**),
@@ -313,6 +313,44 @@ codebase:
     off-by-one in the N-padding width.  The Python port accepts the original v1.0
     flag spellings (`--inFasta`, `-lmin`, `-lmax`, `--sampleFastas`) for backward
     compatibility.
+
+14. **DAMe v3.0.0 — Input robustness and cross-implementation parity.**  A
+    review of both implementations found six defects where they silently
+    disagreed, each reproduced before and after the fix.  `dame-py` stopped
+    reading a FASTQ at the first blank sequence line, discarding every
+    remaining read while reporting success; on a 20-record file that lost 12 of
+    14 reads.  Eleven Rust parsers split input files on tab alone where
+    `dame-py` and DAMe v1.0 split on any whitespace, so a single stray space
+    beside a tab in `Tags.txt` cut a 292-read sort to 61, silently and with
+    exit code 0.  `dame rsi` looped forever on a file with fewer than two
+    columns, a `usize` underflow defeating its own guard.  `dame-py` raised
+    `IndexError` on a short `convert` header and on a blank line in `PSinfo`.
+    Python's `rsi` row order came from a set, so it varied between runs of the
+    same input and never matched the Rust output.
+
+    Two **breaking changes**: `sort` now refuses a `Tags.txt` or `Primers.txt`
+    that is malformed rather than resolving it arbitrarily.  Previously a
+    repeated tag sequence made the assigned tag name, and so the output
+    filename, depend on lookup order (`dame-py` took the first, `dame` the
+    last); a repeated tag name was matched by `dame` on its exact path but not
+    its anchored one, so a single binary gave different answers depending on
+    whether `--primer-mismatches` was set; and a repeated primer set name meant
+    `dame-py` sorted 4 reads where `dame` matched nothing at all.  Tag names,
+    tag sequences and primer set names must now each be unique, and every line
+    must carry all its fields.  Files that previously sorted with one of
+    several arbitrary answers now fail with a clear message.
+
+    `dame rsi` also formats values as Python does (`0.0`, not `0`; `1e-05`, not
+    `1e-5`), verified over 21,424 values.  The Rust CLI gained help text for
+    every flag in all six subcommands, and `filter --p` is documented as
+    accepted but ignored — pooling is driven by column 4 of `PSinfo`.
+
+    The root cause of the whole class was a test gap: every fixture in the repo
+    was well formed, which is precisely where the two implementations agree.
+    `tests/integration/run_malformed.sh` now feeds both binaries damaged input
+    (a stray space, a blank line, a short header, a truncated record, a
+    single-column file) and each case was verified to fail when its fix is
+    reverted.  The suite grew from 59 pytest / 43 cargo tests to 74 / 84.
 
 ## Documentation
 

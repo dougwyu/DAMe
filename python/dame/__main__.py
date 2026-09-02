@@ -1,4 +1,5 @@
 import argparse
+from importlib.metadata import version
 
 from dame import sort, chimera_check, decollapse, rsi
 import dame.filter as filter_mod
@@ -9,6 +10,10 @@ def main():
     parser = argparse.ArgumentParser(
         prog="dame-py",
         description="DAMe: DNA Metabarcoding pipeline toolkit",
+    )
+    parser.add_argument(
+        "--version", action="version",
+        version="dame-py %s" % version("dame-py"),
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 

@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use dame::{chimera_check, convert, decollapse, filter, rsi, sort};
 
 #[derive(Parser)]
-#[command(name = "dame", about = "DNA Metabarcoding toolkit")]
+#[command(name = "dame", version, about = "DNA Metabarcoding toolkit")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
