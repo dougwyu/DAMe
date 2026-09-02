@@ -206,8 +206,15 @@ pub fn read_tags(path: &str) -> Result<TagLookup> {
             continue;
         }
         let parts: Vec<&str> = line.split_whitespace().collect();
+        // Skipping an incomplete entry would drop a tag, and every read
+        // carrying it would then land in the erroneous-sequence count,
+        // indistinguishable from a real tag error. Refuse instead.
         if parts.len() < 2 {
-            continue;
+            return Err(anyhow!(
+                "incomplete tag entry in {} (line {}): expected a tag sequence \
+                 and a tag name, found '{}'.",
+                path, lineno, line
+            ));
         }
         let seq = parts[0];
         let name = parts[1];

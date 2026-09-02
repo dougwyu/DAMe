@@ -79,7 +79,7 @@ def readTags(tags, TAGS):
     """Read a Tags file (TagSeq\\tTagName per line) into TAGS.
 
     Names and sequences must be one to one; ValueError is raised if either
-    repeats.
+    repeats, or if a line does not carry both.
 
     A repeated SEQUENCE makes the name a read is assigned to depend on lookup
     order, and the implementations resolved it differently: this module scans
@@ -100,6 +100,15 @@ def readTags(tags, TAGS):
             line = raw.rstrip().split()
             if not line:
                 continue
+            # Skipping an incomplete entry would drop a tag, and every read
+            # carrying it would then land in the erroneous-sequence count,
+            # indistinguishable from a real tag error. Refuse instead.
+            if len(line) < 2:
+                raise ValueError(
+                    "incomplete tag entry in %s (line %d): expected a tag "
+                    "sequence and a tag name, found '%s'."
+                    % (tags, lineno, raw.strip())
+                )
             if line[0] in seen_seq:
                 raise ValueError(
                     "duplicate tag sequence '%s' in %s (line %d): used by both "

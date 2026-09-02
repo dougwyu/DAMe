@@ -720,3 +720,19 @@ fn test_read_tags_accepts_a_well_formed_panel() {
     assert_eq!(tags.fwd_list[0], (b"AAAA".to_vec(), "Tag1".to_string()));
     assert_eq!(tags.fwd_list[2], (b"GGGG".to_vec(), "Tag3".to_string()));
 }
+
+#[test]
+fn test_read_tags_rejects_incomplete_entry() {
+    // Skipping would silently drop the tag; reads carrying it would then be
+    // counted as erroneous, indistinguishable from a real tag error.
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("tags.txt");
+    std::fs::write(&path, "AAAA\tTag1\nCCCC\tTag2\nGGGG\n").unwrap();
+    let err = match read_tags(path.to_str().unwrap()) {
+        Ok(_) => panic!("expected an error for an incomplete tag entry"),
+        Err(e) => e.to_string(),
+    };
+    assert!(err.contains("incomplete tag entry"), "got: {err}");
+    assert!(err.contains("line 3"), "got: {err}");
+    assert!(err.contains("'GGGG'"), "got: {err}");
+}

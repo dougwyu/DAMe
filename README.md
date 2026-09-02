@@ -338,8 +338,9 @@ TTGGCCA	tag2
 ```
 (`TagSequence`, `TagName`)
 
-Names and sequences must be one to one: `sort` refuses a Tags file that repeats
-either, naming the line and both conflicting entries.  A repeated sequence
+Every line must give both fields, and names and sequences must be one to one:
+`sort` refuses a Tags file with an incomplete entry, or one that repeats a name
+or a sequence, naming the line and both conflicting entries.  A repeated sequence
 would leave the tag a read is assigned to dependent on lookup order, and that
 name becomes an output filename.  A repeated name is worse: only the first
 sequence for it is ever matched, so reads carrying the others are silently

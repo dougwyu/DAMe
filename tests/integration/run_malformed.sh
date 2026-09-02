@@ -206,5 +206,6 @@ echo "PASS: sort, $case refused"
 }
 check_tags_refused duplicate_sequence "$MALFORMED/Tags_duplicate_seq.txt"  "duplicate tag sequence"
 check_tags_refused duplicate_name     "$MALFORMED/Tags_duplicate_name.txt" "duplicate tag name"
+check_tags_refused incomplete_entry  "$MALFORMED/Tags_short_line.txt"     "incomplete tag entry"
 
 echo "PASS: dame and dame-py agree on malformed input"

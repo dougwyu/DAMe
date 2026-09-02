@@ -356,3 +356,19 @@ def test_sort_exits_nonzero_on_duplicate_tag_sequence(tmp_path, monkeypatch):
     assert exc.value.code == 1
     # Refused before writing anything.
     assert not (tmp_path / "SummaryCounts.txt").exists()
+
+
+def test_readTags_rejects_incomplete_entry(tmp_path):
+    """A line with a sequence but no name is refused, not skipped.
+
+    Skipping would drop the tag, and every read carrying it would land in the
+    erroneous-sequence count, indistinguishable from a real tag error.
+    """
+    tags_file = tmp_path / "tags.txt"
+    tags_file.write_text("AAAA\tTag1\nCCCC\tTag2\nGGGG\n")
+    with pytest.raises(ValueError) as exc:
+        readTags(str(tags_file), {})
+    msg = str(exc.value)
+    assert "incomplete tag entry" in msg
+    assert "line 3" in msg
+    assert "'GGGG'" in msg
