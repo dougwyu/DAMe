@@ -6,19 +6,25 @@ use std::io::{BufRead, BufReader, Write};
 
 #[derive(Args)]
 pub struct FilterArgs {
+    /// Text file with tag combination info per PCR reaction per sample
     #[arg(long = "ps-info")]
     pub ps_info: String,
+    /// Number of PCR rxns performed per sample
     #[arg(long = "x", default_value = "2")]
     pub x: usize,
+    /// Number of PCR rxns sequence must be present in
     #[arg(long = "y", default_value = "1")]
     pub y: usize,
     /// Accepted for backward compatibility but ignored; the pool number is read from column 4 of PSinfo
     #[arg(long = "p", default_value = "1")]
     pub p: usize,
+    /// Minimum count per unique sequence
     #[arg(long = "t", default_value = "1")]
     pub t: u32,
+    /// Minimum sequence length
     #[arg(long = "l", default_value = "100")]
     pub l: usize,
+    /// Use chimera-checked sorted collapsed files
     #[arg(long = "chimera-checked")]
     pub chimera_checked: bool,
 }
