@@ -34,7 +34,7 @@ pub fn make_tag_files(ps_info: &str, x: usize) -> Result<()> {
             continue;
         }
         let nr = nr + 1; // 1-indexed
-        let parts: Vec<&str> = line.split('\t').collect();
+        let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() < 3 {
             continue;
         }
@@ -66,7 +66,7 @@ pub fn make_tag_files_with_pools(ps_info: &str, x: usize) -> Result<()> {
             continue;
         }
         let nr = nr + 1; // 1-indexed
-        let parts: Vec<&str> = line.split('\t').collect();
+        let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() < 4 {
             continue;
         }
@@ -101,7 +101,7 @@ pub fn make_size_out_fastas(p: usize, x: usize) -> Result<()> {
             if line.is_empty() {
                 continue;
             }
-            let parts: Vec<&str> = line.split('\t').collect();
+            let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() < 2 {
                 continue;
             }
@@ -136,7 +136,7 @@ pub fn make_size_out_fastas(p: usize, x: usize) -> Result<()> {
                 if seq_line.is_empty() {
                     continue;
                 }
-                let seq_parts: Vec<&str> = seq_line.split('\t').collect();
+                let seq_parts: Vec<&str> = seq_line.split_whitespace().collect();
                 if seq_parts.len() < 5 {
                     continue;
                 }

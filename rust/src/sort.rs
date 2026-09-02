@@ -193,7 +193,7 @@ pub fn read_tags(path: &str) -> Result<TagLookup> {
         if line.is_empty() {
             continue;
         }
-        let parts: Vec<&str> = line.split('\t').collect();
+        let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() < 2 {
             continue;
         }
@@ -244,7 +244,7 @@ pub fn read_primers(path: &str) -> Result<IndexMap<String, PrimerEntry>> {
         if line.is_empty() {
             continue;
         }
-        let parts: Vec<&str> = line.split('\t').collect();
+        let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() < 3 {
             continue;
         }

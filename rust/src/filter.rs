@@ -43,7 +43,7 @@ pub fn make_ps_num_files(ps_info: &str, x: usize, _p: usize, chimera_checked: bo
             continue;
         }
         let nr = nr + 1; // 1-indexed
-        let parts: Vec<&str> = line.split('\t').collect();
+        let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() < 4 {
             continue;
         }
@@ -89,7 +89,7 @@ pub fn make_sample_name_array(ps_info: &str) -> Result<Vec<String>> {
         if line.is_empty() {
             continue;
         }
-        let name = line.split('\t').next().unwrap_or("").to_string();
+        let name = line.split_whitespace().next().unwrap_or("").to_string();
         if !sample_names.contains(&name) {
             sample_names.push(name);
         }
@@ -123,7 +123,7 @@ pub fn read_haps_for_a_sample(
             );
             for line in reader.lines() {
                 let line = line?;
-                let row: Vec<String> = line.split('\t').map(|s| s.to_string()).collect();
+                let row: Vec<String> = line.split_whitespace().map(|s| s.to_string()).collect();
                 entry.push(row);
             }
         }

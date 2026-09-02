@@ -624,3 +624,54 @@ fn test_get_pieces_info_no_panic_on_inverted_primers() {
     // Guard should return None, not panic
     assert!(result.is_none());
 }
+
+// ── whitespace-delimited input files ──────────────────────────────────────────
+// Python's readTags/readPrimers use str.split(), which splits on any run of
+// whitespace, and so did DAMe v1.0. These guard the Rust side against
+// regressing to a tab-only split, which silently dropped tags and primers.
+
+#[test]
+fn test_read_tags_space_separated() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("tags.txt");
+    std::fs::write(&path, "ACGT Tag1\nTTTT Tag2\n").unwrap();
+    let tags = read_tags(path.to_str().unwrap()).unwrap();
+    assert_eq!(tags.by_fwd.get(b"ACGT".as_ref()).map(|s| s.as_str()), Some("Tag1"));
+    assert_eq!(tags.by_fwd.get(b"TTTT".as_ref()).map(|s| s.as_str()), Some("Tag2"));
+}
+
+#[test]
+fn test_read_tags_stray_space_before_tab() {
+    // A single stray space next to the tab previously made the tag sequence
+    // "ACGT " and silently unmatchable.
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("tags.txt");
+    std::fs::write(&path, "ACGT \tTag1\nTTTT\tTag2\n").unwrap();
+    let tags = read_tags(path.to_str().unwrap()).unwrap();
+    assert_eq!(tags.by_fwd.get(b"ACGT".as_ref()).map(|s| s.as_str()), Some("Tag1"));
+    assert_eq!(tags.by_fwd.get(b"TTTT".as_ref()).map(|s| s.as_str()), Some("Tag2"));
+}
+
+#[test]
+fn test_read_primers_space_separated() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("primers.txt");
+    std::fs::write(&path, "CO1 ACGT TTTT\n").unwrap();
+    let primers = read_primers(path.to_str().unwrap()).unwrap();
+    let entry = primers.get("CO1").expect("CO1 primer set present");
+    assert_eq!(entry.start_primers[0], b"ACGT".to_vec());
+    assert_eq!(entry.start_primers[1], b"TTTT".to_vec());
+}
+
+#[test]
+fn test_read_primers_consecutive_tabs() {
+    // An empty column from a deleted field previously yielded an empty forward
+    // primer, which matches at offset 0 on every read.
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("primers.txt");
+    std::fs::write(&path, "CO1\t\tACGT\tTTTT\n").unwrap();
+    let primers = read_primers(path.to_str().unwrap()).unwrap();
+    let entry = primers.get("CO1").expect("CO1 primer set present");
+    assert_eq!(entry.start_primers[0], b"ACGT".to_vec());
+    assert!(!entry.start_primers[0].is_empty(), "forward primer must not be empty");
+}

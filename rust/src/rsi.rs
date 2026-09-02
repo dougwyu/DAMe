@@ -60,7 +60,7 @@ pub fn run(args: RsiArgs) -> Result<()> {
     let data: Vec<Vec<String>> = reader
         .lines()
         .map(|l| {
-            l.map(|s| s.split('\t').map(|f| f.to_string()).collect::<Vec<_>>())
+            l.map(|s| s.split_whitespace().map(|f| f.to_string()).collect::<Vec<_>>())
         })
         .collect::<std::io::Result<Vec<_>>>()?;
 

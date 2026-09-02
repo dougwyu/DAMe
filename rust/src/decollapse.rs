@@ -25,7 +25,7 @@ fn process<R: BufRead, W: Write>(reader: R, mut writer: W) -> Result<()> {
         if line.is_empty() {
             continue;
         }
-        let fields: Vec<&str> = line.split('\t').collect();
+        let fields: Vec<&str> = line.split_whitespace().collect();
         // Columns: PrimerName, Tag1, Tag2, Frequency, Sequence
         if fields.len() < 5 {
             continue;
