@@ -51,8 +51,10 @@ def run(args):
         line = f.readline()  # header line
         while line:
             line = f.readline().rstrip()  # seq line
-            if not line:
-                break
+            # An empty sequence line is a malformed record, not end of input.
+            # Fall through so it is counted in CountErrors and the remaining
+            # records are still read, matching DAMe v1.0 (DAMe_1.0/bin/sort.py).
+            # Breaking here silently discarded every subsequent read.
             if use_anchored:
                 Info = GetPiecesInfoMismatch(line, PRIMERS, TAGS, args.keepPrimersSeq,
                                              args.primer_mismatches, args.tag_mismatches)

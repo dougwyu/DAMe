@@ -1,3 +1,4 @@
+import argparse
 import pytest
 import tempfile
 import os
@@ -254,3 +255,41 @@ def test_sort_argparser_accepts_tag_mismatches():
     args2 = parser.parse_args(["sort", "--fq", "x", "--primers", "y", "--tags", "z",
                                "--tag-mismatches", "2"])
     assert args2.tag_mismatches == 2
+
+
+def _write_fastq(path, records):
+    """Write records as 4-line FASTQ. Each record is (header, seq)."""
+    with open(path, "w") as fh:
+        for hdr, seq in records:
+            fh.write("@%s\n%s\n+\n%s\n" % (hdr, seq, "I" * len(seq)))
+
+
+def test_sort_empty_sequence_line_does_not_truncate(tmp_path, monkeypatch):
+    """A blank sequence line is a malformed record, not end of input.
+
+    DAMe v1.0 counted it as an error and carried on; an early `break` here
+    silently discarded every read after it.
+    """
+    tags_file = tmp_path / "tags.txt"
+    tags_file.write_text("AACCGGT\ttag1\nTTGGCCA\ttag2\n")
+    primers_file = tmp_path / "primers.txt"
+    primers_file.write_text("CO1\tGCRTGC\tCTGACT\n")
+
+    good = "AACCGGT" + "GCATGC" + "TTTTTTTTTT" + "AGTCAG" + "TGGCCAA"
+    fq = tmp_path / "in.fastq"
+    # A blank sequence sits between two otherwise sortable reads.
+    _write_fastq(fq, [("r1", good), ("r2", ""), ("r3", good)])
+
+    monkeypatch.chdir(tmp_path)
+    from dame import sort as sort_mod
+
+    args = argparse.Namespace(
+        fq=str(fq), p=str(primers_file), t=str(tags_file),
+        keepPrimersSeq=False, primer_mismatches=0, tag_mismatches=0,
+    )
+    sort_mod.run(args)
+
+    # r1 and r3 must both survive; only the blank record is an error.
+    summary = (tmp_path / "SummaryCounts.txt").read_text().splitlines()
+    assert len(summary) == 2, summary          # header + one tag pair
+    assert summary[1].split("\t")[3] == "2"    # SumTotalFreq counts r1 and r3
