@@ -1,4 +1,4 @@
-use dame::rsi::{compare, run, RsiArgs};
+use dame::rsi::{compare, fmt_rsi, run, RsiArgs};
 use ndarray::array;
 use std::io::Write;
 use tempfile::tempdir;
@@ -156,4 +156,38 @@ fn test_exactly_two_replicates_still_computed() {
     run(args).expect("run should succeed");
     let contents = std::fs::read_to_string(&output_path).unwrap();
     assert!(contents.contains("S1"), "got: {}", contents);
+}
+
+
+// ── fmt_rsi ───────────────────────────────────────────────────────────────────
+// RSI values are written to a data file that dame-py also writes, so the text
+// must match Python's float repr exactly, not merely parse to the same number.
+
+#[test]
+fn test_fmt_rsi_keeps_decimal_point_on_whole_numbers() {
+    // Display would print these as "0" and "1"; Python writes "0.0" and "1.0".
+    assert_eq!(fmt_rsi(0.0), "0.0");
+    assert_eq!(fmt_rsi(1.0), "1.0");
+}
+
+#[test]
+fn test_fmt_rsi_pads_single_digit_exponents() {
+    // Debug would print "1e-5"; Python pads the exponent to two digits.
+    assert_eq!(fmt_rsi(1e-5), "1e-05");
+    assert_eq!(fmt_rsi(2e-5), "2e-05");
+    assert_eq!(fmt_rsi(1e-7), "1e-07");
+}
+
+#[test]
+fn test_fmt_rsi_leaves_two_digit_exponents_alone() {
+    assert_eq!(fmt_rsi(1.1102230246251565e-16), "1.1102230246251565e-16");
+    assert_eq!(fmt_rsi(1e-22), "1e-22");
+}
+
+#[test]
+fn test_fmt_rsi_ordinary_values_unchanged() {
+    assert_eq!(fmt_rsi(0.5), "0.5");
+    assert_eq!(fmt_rsi(0.0001), "0.0001");
+    assert_eq!(fmt_rsi(0.5870445344129555), "0.5870445344129555");
+    assert_eq!(fmt_rsi(0.3333333333333333), "0.3333333333333333");
 }

@@ -55,6 +55,32 @@ pub fn compare(matrix: &Array2<i64>, j: &str, a: usize, b: usize) -> f64 {
     1.0 - min_sum
 }
 
+/// Format an RSI value the way Python's `float` repr does, so the two
+/// implementations write byte-identical output files.
+///
+/// Two differences have to be reconciled. Rust's `Display` prints an integral
+/// f64 as `0`, where Python always carries a decimal point and writes `0.0`;
+/// `Debug` keeps the `.0`, so it is the better base. But `Debug` then writes a
+/// single-digit exponent as `1e-5`, where Python pads to two digits and signs
+/// it: `1e-05`. Both arise here, since RSI is a ratio of read counts and a
+/// near-identical pair of replicates at realistic depth lands below 1e-4.
+pub fn fmt_rsi(v: f64) -> String {
+    let s = format!("{v:?}");
+    let Some((mantissa, exp)) = s.split_once('e') else {
+        return s;
+    };
+    let (sign, digits) = match exp.strip_prefix('-') {
+        Some(d) => ('-', d),
+        None => ('+', exp.strip_prefix('+').unwrap_or(exp)),
+    };
+    // Python pads the exponent to a minimum of two digits.
+    if digits.len() < 2 {
+        format!("{mantissa}e{sign}0{digits}")
+    } else {
+        format!("{mantissa}e{sign}{digits}")
+    }
+}
+
 pub fn run(args: RsiArgs) -> Result<()> {
     // Read input file into rows of string fields
     let reader = BufReader::new(
@@ -137,12 +163,12 @@ pub fn run(args: RsiArgs) -> Result<()> {
     if args.explicit {
         writeln!(out, "Sample\tReplicateA\tReplicateB\tRSI")?;
         for (sample, rep_a, rep_b, rsi) in &rkn_explicit {
-            writeln!(out, "{sample}\t{rep_a}\t{rep_b}\t{rsi}")?;
+            writeln!(out, "{}\t{}\t{}\t{}", sample, rep_a, rep_b, fmt_rsi(*rsi))?;
         }
     } else {
         writeln!(out, "Sample\tRSI")?;
         for (sample, rsi) in &rkn_avg {
-            writeln!(out, "{sample}\t{rsi}")?;
+            writeln!(out, "{}\t{}", sample, fmt_rsi(*rsi))?;
         }
     }
 
