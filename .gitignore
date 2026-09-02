@@ -56,3 +56,6 @@ python/uv.lock
 
 # Rust build artifacts
 rust/target/
+
+# Raw local benchmark runs
+/benchmark/results/

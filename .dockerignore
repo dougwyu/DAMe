@@ -1,0 +1,7 @@
+.git
+.worktrees
+rust/target
+benchmark/results
+**/__pycache__
+**/.pytest_cache
+python/*.egg-info
