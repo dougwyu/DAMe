@@ -23,84 +23,73 @@ during sort.  IUPAC ambiguity codes are supported in primer sequences.
 
 ## Performance
 
-Small dataset — tutorial (392 reads, 1 pool):
+DAMe v3 provides Python and Rust implementations developed in parallel.
+The figures below are median wall-clock times for complete CLI invocations in
+one Linux/aarch64 Docker environment, using two warmups and ten interleaved
+measured runs. Outputs were checked for equivalence before timing.
 
-| Step | Python 3 | Rust 2.0 | Rust 2.1 | 2.1 vs Python |
-|------|----------|----------|----------|---------------|
-| sort | ~280 ms | ~38 ms | ~36 ms | ~8× |
+### Sort
 
-Large dataset — synthetic benchmark (196,000 reads, 2 pools of ~100k reads each):
+The default sort workload contained 98,000 synthetic reads:
 
-| Step | Python 3 | Rust 2.0 | Rust 2.1 | Rust 2.2 | Rust 2.3 | 2.3 vs Python |
-|------|----------|----------|----------|----------|----------|---------------|
-| sort (plain FASTQ) | ~500 ms/pool | ~97 ms/pool | ~89 ms/pool | ~111 ms/pool (†) | ~105 ms/pool | ~4.8× |
-| sort (gzip FASTQ)  | — | not supported | ~102 ms/pool | ~111 ms/pool | ~105 ms/pool | new in 2.1 |
-| filter | ~149 ms | ~39 ms | ~38 ms | ~38 ms | ~38 ms | ~4× |
-| rsi | ~150 ms | ~33 ms | ~34 ms | ~34 ms | ~34 ms | ~4.4× |
+| Implementation | Median | Throughput | Comparison |
+|---|---:|---:|---:|
+| Upstream DAMe v1 (Python 2.7) | 328.9 ms | 298.0k reads/s | baseline |
+| DAMe Python v3 | 302.1 ms | 324.4k reads/s | **1.1× v1** |
+| DAMe Rust v3 | 44.84 ms | 2.186M reads/s | **7.3× v1; 6.7× Python v3** |
 
-(†) The v2.2 sort figure was remeasured under the current toolchain
-(rustc 1.94) and machine-load conditions for an apples-to-apples comparison
-with v2.3.  The previous v2.2 figure of ~59 ms/pool was recorded on a
-different toolchain/machine state; the absolute numbers are not directly
-comparable across measurement sessions, but the relative v2.3-vs-v2.2 gap
-reported here is a true interleaved benchmark.
+Rust gains speed because the work repeated for every read runs as compiled
+machine code rather than being stepped through by the Python interpreter.
+`needletail` reads FASTQ records efficiently, and Rust compares DNA letters
+as simple bytes instead of repeatedly creating and examining Python strings.
+It also builds lookup tables for the tag sequences once at startup. That lets
+it find a tag directly for each read instead of scanning the full tag list,
+while avoiding many short-lived strings and other temporary objects.
 
-The v2.1 sort improvement (~9% over 2.0) comes from `needletail`'s faster
-FASTQ parsing and `ahash` replacing `SipHash` for DNA-string key lookups.
-Filter and RSI are I/O-bound on small collapsed-sequence files at this scale,
-so the hasher change has negligible effect there.  The gzip overhead (~15%
-in 2.1) is effectively eliminated in v2.2: the new binary handles both plain
-and `.fastq.gz` input at the same speed.
+The difference becomes much larger when primer or tag mismatches are allowed.
+Python's exact path can use a regular-expression engine implemented in compiled
+code, but its mismatch-tolerant path must loop through candidate primers, tags
+and DNA positions in Python while counting differences. The Rust version
+performs the same kind of checks with compiled byte-level loops at fixed
+positions in each read. On this dataset that made Rust about 52× faster on the
+mismatch-enabled paths; the exact ratio can change with the tag panel, read
+layout and permitted mismatch count.
 
-The v2.2 byte-matcher change replaced four `Regex::find()` calls per read
-with a hand-written IUPAC sliding-window (`iupac_matches` + `find_primer`) and
-removed the `regex` crate dependency entirely.  On the CO1 tutorial primers
-(no ambiguity codes), the `regex` crate's SIMD-compiled DFA remains
-competitive with naive byte-by-byte scanning, so the sort time is similar to
-v2.1.  The benefit of v2.2 is correctness assurance on highly ambiguous
-primers (e.g. many N or degenerate positions) and a simpler dependency tree.
+| v3 sort mode | Python v3 | Rust v3 | Rust speedup |
+|---|---:|---:|---:|
+| Default / exact | 324.4k reads/s | 2.186M reads/s | 6.7× |
+| One primer mismatch | 50.54k reads/s | 2.627M reads/s | 52.0× |
+| One tag mismatch | 49.81k reads/s | 2.609M reads/s | 52.4× |
 
-The v2.3 sort changes target three per-read constant-factor costs in the hot
-loop: (a) a byte-level `rc_bytes(&[u8]) -> Vec<u8>` replaces the char-based
-`rc(&str) -> String` in the reverse-orientation branch of `get_pieces_info`,
-eliminating UTF-8 decode on every reverse-orientation read; (b) `read_tags`
-now pre-builds two `HashMap<Vec<u8>, String>` reverse-lookup maps (forward
-and RC) at startup, replacing the per-read `O(N_tags)` linear scan in
-`get_pieces_info` with `O(1)` hash lookups; (c) `fill_hap` no longer calls
-`between.to_string()` on reads that land on an already-seen barcode — the
-common case at typical amplicon duplication rates.  On the CO1 tutorial
-primers with 8 tags, the measured sort speedup is ~5% (the small N_tags
-limits the benefit of the O(1) lookup, and the synthetic dataset is
-parsing-bound).  Larger tag panels should benefit more.
+### Filter
 
-The v2.4 (gzip input) and v2.5 (tag mismatches + anchored matching) changes
-keep the default sort path fast.  Python's exact (no-mismatch) matcher uses a
-compiled IUPAC regex — the same C-accelerated path as v2.3 — and the
-interpreted manual matcher runs only when `--primer-mismatches` or
-`--tag-mismatches` is set.  (An interim build had replaced the Python regex
-matcher with a manual sliding window for *all* reads; on a 98k-read pool that
-was ~10× slower for the common no-mismatch case — ~4.4 s vs ~0.43 s in a
-controlled same-session run — so the regex fast path was restored for the
-defaults.)  Rust uses its byte-level matcher throughout and is unaffected.
+The scaled filter workload contained 40,000 collapsed input records:
 
-Fresh-session measurement (196,000 reads, 2 pools, 8-tag CO1 panel; best of 5;
-reproduce with `benchmark/run_sort_benchmark.sh`).  These absolute numbers are
-**not** comparable to the v2.0–v2.3 rows above — different machine, load and
-dataset — so read the within-session ratios, not the milliseconds:
+| Implementation | Median | Throughput | Comparison |
+|---|---:|---:|---:|
+| Upstream DAMe v1 (Python 2.7) | 258.9 ms | 154.5k records/s | baseline |
+| DAMe Python v3 | 306.4 ms | 130.6k records/s | v1 was **1.2× faster** |
+| DAMe Rust v3 | 86.61 ms | 461.8k records/s | **3.0× v1; 3.5× Python v3** |
 
-| sort, per pool (98k reads) | Python 3 | Rust 2.5 |
-|---|---|---|
-| default (`-m 0 -mt 0`)  | ~87 ms  | ~15 ms |
-| `--primer-mismatches 1` | ~102 ms | ~16 ms |
-| `--tag-mismatches 1`    | ~101 ms | ~16 ms |
+Filtering reads the collapsed sequences for each sample and PCR replicate,
+builds the set of sequences that must be compared, applies the replicate,
+count and length thresholds, and writes several result files. Rust performs
+those repeated steps in compiled loops. Buffered input reduces the number of
+small reads requested from the operating system, and Rust's data structures
+need less per-record bookkeeping than Python objects and dictionaries. Those
+savings accumulate across the 40,000 records in the scaled workload.
 
-At this panel size the anchored matcher (used when mismatches are enabled) adds
-~15–20% in Python and is within noise in Rust.  Its per-read work is roughly
-`O(N_primers × N_tags)` for typical panels (a tag scan at each read end, primers
-checked at the anchored offset), rising toward `O(N_primers × N_tags²)` when
-many tags fall within the mismatch budget — so very large tag panels combined
-with a high `--tag-mismatches` will cost proportionally more.  The default
-exact path is unaffected.
+The complete command time also includes work outside the filtering loop.
+Python v3 sorts sequence sets so its output order is repeatable, which costs
+some time. Its central command dispatcher also imports every subcommand—and
+therefore NumPy through the RSI command—before it runs `filter`. Upstream v1
+starts its filter script directly and does not perform the same deterministic
+sorting. A naturally collapsed test contained only 40 input records, so these
+startup costs outweighed the filtering work and produced unhelpful ratios. It
+was omitted in favour of the larger workload shown above.
+
+See the full [sort report](docs/performance-sort-v1-v3.md) and
+[filter report](docs/performance-filter-v1-v3.md) for methodology and scope.
 
 ## Quick start
 
