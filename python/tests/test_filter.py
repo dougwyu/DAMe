@@ -67,3 +67,34 @@ def test_getSeqsSetsAndFRcounts_with_data():
     assert F["0"] == "Tag1"
     assert R["0"] == "Tag2"
     assert counts["0"] == ["3", "1"]
+
+
+# ── malformed PSinfo ──────────────────────────────────────────────────────────
+# filter.rs skips blank and short lines. These pin the Python side to the same
+# behaviour, including that a skipped line still consumes a replicate slot so
+# the PS file assignment stays in step between implementations.
+
+def test_blank_psinfo_line_is_skipped(tmp_path, monkeypatch):
+    psinfo = tmp_path / "PSinfo.txt"
+    psinfo.write_text("Sample1\ttag1\ttag2\t1\nSample1\ttag3\ttag4\t2\n\n")
+    monkeypatch.chdir(tmp_path)
+    makePSnumFiles(str(psinfo), 2, 1, False)
+    assert (tmp_path / "PS1_files.txt").read_text() == "pool1/tag1_tag2.txt\n"
+    assert (tmp_path / "PS2_files.txt").read_text() == "pool2/tag3_tag4.txt\n"
+
+
+def test_blank_psinfo_line_skipped_by_sample_name_array(tmp_path):
+    psinfo = tmp_path / "PSinfo.txt"
+    psinfo.write_text("Sample1\ttag1\ttag2\t1\n\nSample2\ttag3\ttag4\t2\n")
+    assert MakeSampleNameArray(str(psinfo)) == ["Sample1", "Sample2"]
+
+
+def test_short_psinfo_line_is_skipped(tmp_path, monkeypatch):
+    # A three-column line has no pool number and is dropped, but still consumes
+    # its replicate slot, so line 3 lands in PS1 rather than shifting up.
+    psinfo = tmp_path / "PSinfo.txt"
+    psinfo.write_text("Sample1\ttag1\ttag2\t1\nSample1\ttag3\ttag4\nSample2\ttag5\ttag6\t1\n")
+    monkeypatch.chdir(tmp_path)
+    makePSnumFiles(str(psinfo), 2, 1, False)
+    assert (tmp_path / "PS1_files.txt").read_text() == "pool1/tag1_tag2.txt\npool1/tag5_tag6.txt\n"
+    assert (tmp_path / "PS2_files.txt").read_text() == ""

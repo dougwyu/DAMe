@@ -7,7 +7,16 @@ def makePSnumFiles(PSinfo, X, P, chimeraChecked):
         PS = f.readlines()
     for NR, psinfo in enumerate(PS):
         NR = NR + 1
-        psinfo = psinfo.rstrip().split()
+        # Skip blank and short lines rather than raising IndexError, matching
+        # the Rust implementation (filter.rs). NR still counts skipped lines,
+        # exactly as Rust's enumerate index does, so a blank line consumes a
+        # replicate slot in both and the PS file assignment stays in step.
+        psinfo = psinfo.strip()
+        if not psinfo:
+            continue
+        psinfo = psinfo.split()
+        if len(psinfo) < 4:
+            continue
         residue = NR % X
         idx = residue - 1 if residue != 0 else X - 1
         if not chimeraChecked:
@@ -30,6 +39,11 @@ def MakeSampleNameArray(PSinfo):
     sampleName = []
     with open(PSinfo) as f:
         for line in f:
+            # Skip blank lines rather than raising IndexError, matching
+            # make_sample_name_array in filter.rs.
+            line = line.strip()
+            if not line:
+                continue
             name = line.split()[0]
             if name not in sampleName:
                 sampleName.append(name)

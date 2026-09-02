@@ -8,7 +8,15 @@ def makeTagFiles(PSinfo, X):
         PS = f.readlines()
     for NR, psinfo in enumerate(PS):
         NR = NR + 1
-        psinfo = psinfo.rstrip().split()
+        # Skip blank and short lines rather than raising IndexError, matching
+        # chimera_check.rs. NR still counts skipped lines, as Rust's enumerate
+        # index does, so the PS file assignment stays in step.
+        psinfo = psinfo.strip()
+        if not psinfo:
+            continue
+        psinfo = psinfo.split()
+        if len(psinfo) < 3:
+            continue
         residue = NR % X
         idx = residue - 1 if residue != 0 else X - 1
         PSouts[idx].write("%s\t%s\n" % (psinfo[1], psinfo[2]))
@@ -22,7 +30,13 @@ def makeTagFilesWithPools(PSinfo, X):
         PS = f.readlines()
     for NR, psinfo in enumerate(PS):
         NR = NR + 1
-        psinfo = psinfo.rstrip().split()
+        # As makeTagFiles above, but the pool column is also required.
+        psinfo = psinfo.strip()
+        if not psinfo:
+            continue
+        psinfo = psinfo.split()
+        if len(psinfo) < 4:
+            continue
         residue = NR % X
         idx = residue - 1 if residue != 0 else X - 1
         PSouts[idx].write("%s\t%s\t%s\n" % (psinfo[1], psinfo[2], psinfo[3]))
