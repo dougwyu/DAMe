@@ -30,3 +30,28 @@ def test_compare_zero_replicate_handled():
     matrix = np.array([[0, 10], [0, 20]])
     result = compare(matrix, "sample1", 1, 2)
     assert 0.0 <= result <= 1.0
+
+
+# ── deterministic sample ordering ─────────────────────────────────────────────
+# A Python set iterates in hash-seed-dependent order, so RSI rows used to come
+# out in a different order on every run and never matched the Rust output, which
+# sorts sample names.
+
+def test_rsi_sample_order_is_sorted(tmp_path, monkeypatch):
+    import argparse
+    from dame import rsi as rsi_mod
+
+    inp = tmp_path / "cmp.txt"
+    inp.write_text(
+        "sB\tt1-t2\t5\tt3-t4\t7\tTTTT\n"
+        "sD\tt1-t2\t6\tt3-t4\t2\tCCCC\n"
+        "sA\tt1-t2\t10\tt3-t4\t8\tACGT\n"
+        "sC\tt1-t2\t3\tt3-t4\t9\tGGGG\n"
+    )
+    out = tmp_path / "RSI_output.txt"
+    monkeypatch.chdir(tmp_path)
+    rsi_mod.run(argparse.Namespace(
+        input=str(inp), explicit=False, outfile=str(out)
+    ))
+    names = [ln.split("\t")[0] for ln in out.read_text().splitlines()[1:]]
+    assert names == ["sA", "sB", "sC", "sD"], names

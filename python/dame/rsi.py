@@ -37,7 +37,10 @@ def run(args):
             parts = line.split()
             data.append(parts)
     data = np.array(data)
-    names = set(row[0] for row in data)
+    # Sort for deterministic output (and to match the Rust implementation's
+    # ordering): a Python set iterates in hash-seed-dependent order, which makes
+    # the RSI row order differ between runs of the same input.
+    names = sorted(set(row[0] for row in data))
     no_rep = (len(data[0]) - 2) // 2
     if no_rep < 2:
         print("There are no replicates in the file.")
