@@ -19,7 +19,12 @@ implementations:
 Reads are expected to have the structure
 `[fwd_tag][fwd_primer][amplicon][rc(rev_primer)][rc(rev_tag)]`.
 Both forward and reverse-complement orientations are detected automatically
-during sort.  IUPAC ambiguity codes are supported in primer sequences.
+during sort. IUPAC ambiguity codes are supported in primer sequences. The
+`--primer-mismatches` and `--tag-mismatches` options tolerate substitutions
+only: insertions or deletions in a primer or tag are not tolerated, and such
+reads normally remain unassigned. Amplicon length may vary, including through
+insertions or deletions within the amplicon. `filter` does not perform mismatch
+correction; it compares the amplicon sequences produced by `sort` exactly.
 
 ## Performance
 

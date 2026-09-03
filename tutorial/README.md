@@ -190,6 +190,8 @@ This corresponds to the 100 completely random no-primer reads in Pool1.
 
 The filter step reads the PSinfo file to know which tag-combination files belong to
 which samples and replicates, then applies presence, count, and length thresholds.
+It does not realign similar sequences or apply the primer and tag mismatch
+allowances: amplicon sequences emitted by `sort` are compared exactly.
 
 ```bash
 dame filter \
@@ -489,8 +491,15 @@ are stripped unless `--keep-primers-seq` is passed to `dame sort`.
 | Flag (Rust) | Flag (Python) | Meaning | Default |
 |---|---|---|---|
 | `--keep-primers-seq` | `--keepPrimersSeq` | Retain primer sequences in output instead of stripping them | off |
-| `--primer-mismatches N` | `-m N` | Allow up to N substitutions per primer match (IUPAC-aware). | 0 |
-| `--tag-mismatches N` | `-mt N` | Allow up to N substitutions per tag (tag1 and tag2 independently, IUPAC-aware). Triggers the anchored matcher; ambiguous reads are discarded. | 0 |
+| `--primer-mismatches N` | `-m N` | Allow up to N substitutions per primer match (IUPAC-aware); primer indels are not tolerated. | 0 |
+| `--tag-mismatches N` | `-mt N` | Allow up to N substitutions per tag (tag1 and tag2 independently, IUPAC-aware); tag indels are not tolerated. Triggers the anchored matcher; ambiguous reads are discarded. | 0 |
+
+These options use fixed-length, end-anchored comparisons rather than general
+sequence alignment. A variable-length amplicon—and an insertion or deletion
+within the amplicon—is supported because the second tag and primer are located
+relative to the end of the read. An insertion or deletion within a primer or
+tag changes an expected fixed-length region, so the matcher normally rejects
+the read instead of treating the indel as one mismatch.
 
 ### What Sort Does Not Output
 
@@ -500,6 +509,7 @@ Those are counted and printed as "erroneous sequences" to stdout. This includes:
 - Reads where a primer is found but the flanking tag is unrecognized
 - Reads where no primer is found at all
 - Reads with partial primer matches
+- Reads whose primer or tag insertion/deletion prevents a valid fixed-window match
 
 ---
 
