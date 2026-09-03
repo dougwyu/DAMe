@@ -26,7 +26,7 @@ during sort.  IUPAC ambiguity codes are supported in primer sequences.
 DAMe v3 provides Python and Rust implementations developed in parallel.
 The figures below are median wall-clock times for complete CLI invocations in
 one Linux/aarch64 Docker environment, using two warmups and ten interleaved
-measured runs. Outputs were checked for equivalence before timing.
+measured runs. Outputs were checked for equivalence before accepting results.
 
 ### Sort
 
@@ -34,9 +34,9 @@ The default sort workload contained 98,000 synthetic reads:
 
 | Implementation | Median | Throughput | Comparison |
 |---|---:|---:|---:|
-| Upstream DAMe v1 (Python 2.7) | 328.9 ms | 298.0k reads/s | baseline |
-| DAMe Python v3 | 302.1 ms | 324.4k reads/s | **1.1× v1** |
-| DAMe Rust v3 | 44.84 ms | 2.186M reads/s | **7.3× v1; 6.7× Python v3** |
+| Upstream DAMe v1 (Python 2.7) | 334.4 ms | 293.1k reads/s | baseline |
+| DAMe Python v3 | 241.1 ms | 406.5k reads/s | **1.4× v1** |
+| DAMe Rust v3 | 50.34 ms | 1.947M reads/s | **6.6× v1; 4.8× Python v3** |
 
 Rust gains speed because the work repeated for every read runs as compiled
 machine code rather than being stepped through by the Python interpreter.
@@ -44,23 +44,24 @@ machine code rather than being stepped through by the Python interpreter.
 as simple bytes instead of repeatedly creating and examining Python strings.
 It also builds lookup tables for the tag sequences once at startup. That lets
 it find a tag directly for each read instead of scanning the full tag list,
-while avoiding many short-lived strings and other temporary objects.
+while avoiding many short-lived strings and other temporary objects. Python v3
+now delays NumPy loading until RSI needs it, reducing startup work for `sort`.
 
 The difference becomes much larger when primer or tag mismatches are allowed.
 Python's exact path can use a regular-expression engine implemented in compiled
 code, but its mismatch-tolerant path must loop through candidate primers, tags
 and DNA positions in Python while counting differences. The Rust version
 performs the same kind of checks with compiled byte-level loops at fixed
-positions in each read. On this dataset that made Rust about 52× faster on the
+positions in each read. On this dataset that made Rust about 42× faster on the
 mismatch-enabled paths; the exact ratio can change with the tag panel, read
-layout and permitted mismatch count. (N.B. Upstream DAMe v1 does not have mismatch 
-capability and is therefore not in the table).
+layout and permitted mismatch count. Upstream DAMe v1 has no mismatch capability
+and is therefore not included in this table.
 
 | v3 sort mode | Python v3 | Rust v3 | Rust speedup |
 |---|---:|---:|---:|
-| Default / exact | 324.4k reads/s | 2.186M reads/s | 6.7× |
-| One primer mismatch | 50.54k reads/s | 2.627M reads/s | 52.0× |
-| One tag mismatch | 49.81k reads/s | 2.609M reads/s | 52.4× |
+| Default / exact | 406.5k reads/s | 1.947M reads/s | 4.8× |
+| One primer mismatch | 53.12k reads/s | 2.241M reads/s | 42.2× |
+| One tag mismatch | 52.87k reads/s | 2.253M reads/s | 42.6× |
 
 ### Filter
 
@@ -68,26 +69,17 @@ The scaled filter workload contained 40,000 collapsed input records:
 
 | Implementation | Median | Throughput | Comparison |
 |---|---:|---:|---:|
-| Upstream DAMe v1 (Python 2.7) | 258.9 ms | 154.5k records/s | baseline |
-| DAMe Python v3 | 306.4 ms | 130.6k records/s | v1 was **1.2× faster** |
-| DAMe Rust v3 | 86.61 ms | 461.8k records/s | **3.0× v1; 3.5× Python v3** |
+| Upstream DAMe v1 (Python 2.7) | 291.8 ms | 137.1k records/s | baseline |
+| DAMe Python v3 | 81.90 ms | 488.4k records/s | **3.6× v1; 1.3× Rust v3** |
+| DAMe Rust v3 | 104.3 ms | 383.5k records/s | **2.8× v1** |
 
-Filtering reads the collapsed sequences for each sample and PCR replicate,
-builds the set of sequences that must be compared, applies the replicate,
-count and length thresholds, and writes several result files. Rust performs
-those repeated steps in compiled loops. Buffered input reduces the number of
-small reads requested from the operating system, and Rust's data structures
-need less per-record bookkeeping than Python objects and dictionaries. Those
-savings accumulate across the 40,000 records in the scaled workload.
-
-The complete command time also includes work outside the filtering loop.
-Python v3 sorts sequence sets so its output order is repeatable, which costs
-some time. Its central command dispatcher also imports every subcommand—and
-therefore NumPy through the RSI command—before it runs `filter`. Upstream v1
-starts its filter script directly and does not perform the same deterministic
-sorting. A naturally collapsed test contained only 40 input records, so these
-startup costs outweighed the filtering work and produced unhelpful ratios. It
-was omitted in favour of the larger workload shown above.
+Filtering compares collapsed sequences across PCR replicates, applies count and
+length thresholds, and writes several result files. Both v3 implementations now
+index counts by sequence instead of repeatedly scanning each replicate. Python
+also avoids importing NumPy for `filter`, so on this workload it finishes ahead
+of Rust despite deterministic output sorting. Rust still benefits from compiled
+loops and low per-record overhead. Tiny inputs are omitted because process
+startup dominates them.
 
 See the full [sort report](docs/performance-sort-v1-v3.md) and
 [filter report](docs/performance-filter-v1-v3.md) for methodology and scope.
