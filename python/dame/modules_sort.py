@@ -57,7 +57,12 @@ def hamming_iupac(pattern, region):
     Returns a sentinel greater than len(pattern) when lengths differ."""
     if len(pattern) != len(region):
         return len(pattern) + 1
-    return sum(0 if iupac_matches(p, r) else 1 for p, r in zip(pattern, region))
+    mismatches = 0
+    for primer_base, read_base in zip(pattern, region):
+        allowed = _IUPAC.get(primer_base)
+        if allowed is None or read_base not in allowed:
+            mismatches += 1
+    return mismatches
 
 
 def min_equal_length_tag_distance(TAGS):

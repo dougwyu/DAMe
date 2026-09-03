@@ -189,6 +189,13 @@ def test_hamming_iupac():
     assert hamming_iupac("ACGT", "ACG") > 3
 
 
+@pytest.mark.parametrize("primer_base", "ACGTRYSWKMBDHVN")
+@pytest.mark.parametrize("read_base", "ACGTNX")
+def test_hamming_iupac_matches_single_base_predicate(primer_base, read_base):
+    expected = 0 if iupac_matches(primer_base, read_base) else 1
+    assert hamming_iupac(primer_base, read_base) == expected
+
+
 def test_min_equal_length_tag_distance():
     assert min_equal_length_tag_distance({"T1": ["AAAA", "TTTT"],
                                           "T2": ["AATT", "AATT"],
