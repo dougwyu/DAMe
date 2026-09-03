@@ -1,4 +1,4 @@
-# DAMe v3.0.0: DNA Metabarcoding toolkit
+# DAMe v3.1.0: DNA Metabarcoding toolkit
 
 DAMe demultiplexes pooled metabarcoding / eDNA FASTQ reads by primer and
 tag sequences (**sort**), optionally removes chimeric sequences (**chimera**),
@@ -339,6 +339,22 @@ codebase:
     (a stray space, a blank line, a short header, a truncated record, a
     single-column file) and each case was verified to fail when its fix is
     reverted.  The suite grew from 59 pytest / 43 cargo tests to 74 / 84.
+
+15. **DAMe v3.1.0 — Faster filtering and mismatch sorting.**  Both v3
+    implementations now index filter counts by sequence instead of repeatedly
+    scanning each replicate. Python loads NumPy only for RSI, avoiding that
+    startup cost for other commands, and its IUPAC Hamming matcher uses one
+    direct loop instead of a generator plus a function call per base. The
+    latter makes Python's primer- and tag-mismatch sort paths about 34% faster
+    on the benchmark workload without changing their output.
+
+    A reproducible Docker benchmark gate now times exact sort, mismatch sort
+    and filter in rotating interleaved runs, then checks Python/Rust output
+    parity before accepting the results. Concise v1-versus-v3 and
+    Python-versus-Rust reports are in `docs/`. The Rust package and
+    `dame --version` now follow the shared DAMe release number. Documentation
+    also makes explicit that mismatch allowances cover substitutions only:
+    primer and tag indels are not aligned or tolerated.
 
 ## Documentation
 
