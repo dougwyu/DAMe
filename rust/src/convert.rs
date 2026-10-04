@@ -1,12 +1,15 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use clap::Args;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::path::Path;
+
+use crate::perpcr;
 
 #[derive(Args)]
 pub struct ConvertArgs {
-    /// Input FilteredReads.fna file
+    /// Input FilteredReads.fna file (Comparisons_<X>PCRs.fasta with --per-pcr)
     #[arg(short = 'i', long = "in-fasta")]
     pub in_fasta: String,
     /// Drop sequences shorter than N
@@ -21,9 +24,31 @@ pub struct ConvertArgs {
     /// Write per-sample fastas to SampleFastas/
     #[arg(short = 's', long = "sample-fastas")]
     pub sample_fastas: bool,
+    /// Write one record per PCR replicate (for mapping) and PCRinfo.txt, instead of
+    /// summing counts per sample. Use Comparisons_<X>PCRs.fasta as input
+    #[arg(long = "per-pcr")]
+    pub per_pcr: bool,
+    /// With --per-pcr: PSinfo file, adding pool and real tag pairs to PCRinfo.txt
+    /// and cross-checking tag pairs
+    #[arg(long = "ps-info")]
+    pub ps_info: Option<String>,
 }
 
 pub fn run(args: ConvertArgs) -> Result<()> {
+    if let Some(message) = perpcr::flag_error(args.per_pcr, args.ps_info.as_deref(), args.sample_fastas) {
+        bail!("{}", message);
+    }
+    if args.per_pcr {
+        return perpcr::run_per_pcr(
+            &args.in_fasta,
+            args.ps_info.as_deref(),
+            args.min_length,
+            args.max_length,
+            args.usearch,
+            Path::new("."),
+        );
+    }
+
     let reader = BufReader::new(File::open(&args.in_fasta)?);
     let out_name = if args.usearch {
         "FilteredReads.forusearch.fna"
