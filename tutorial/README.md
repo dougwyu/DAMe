@@ -333,6 +333,118 @@ dame-py convert -i FilteredReads.fna -s
 
 `dame-py` also accepts the original v1.0 spellings: `--inFasta`, `-lmin`, `-lmax`, `--sampleFastas`.
 
+## Per-PCR OTU tables for occupancy and detection models
+
+Occupancy and detection models such as occPlus and occJSDM need one row per PCR reaction, and
+they estimate false positives and false negatives themselves. The usual DAMe route gets in their
+way twice:
+
+1. **Filtered cells become zeros.** `filter --y 2` keeps a sequence in a sample only if it is in
+   at least 2 of that sample's PCRs. A real sequence seen once, in one PCR, is dropped from that
+   sample even though it passes elsewhere, so its OTU column survives but the cell is 0.
+2. **PCRs are summed.** `convert` adds the replicate counts into one record per sample.
+
+The fix is to keep DAMe's decision about *which* sequences are real, and rebuild the *counts* by
+mapping every read, PCR by PCR, onto those sequences. Ji et al. (2025) built their occPlus table
+this way.
+
+### Example
+
+`tests/fixtures/perpcr/` holds a small synthetic data set (4 samples x 3 PCRs, a 120-bp marker).
+After `filter --x 3 --y 2 --t 1 --l 100`, the usual route gives:
+
+```
+sample  OTU_A  OTU_B  OTU_C
+S1        146      0      0     B was seen in S1 PCR2 (1 read)
+S2          0     55      0     C and A were each seen once in S2
+S3          0      0     14
+```
+
+The per-PCR route below gives one row per PCR, keeps those detections, and lists every PCR,
+including S3 PCR2 (no reads) and sample S4 (no reads in any PCR):
+
+```
+pcr_id   sample pcr tag_pair pool reads_pre_mapping OTU_seq1 OTU_seq2 OTU_seq3
+S1_PCR1  S1     1   t1-t2    1    57                55       0        0
+S1_PCR2  S1     2   t3-t4    1    47                46       1        0
+S1_PCR3  S1     3   t5-t6    2    45                45       0        0
+S2_PCR1  S2     1   t7-t8    1    30                0        30       0
+S2_PCR2  S2     2   t9-t10   1    26                1        25       0
+S2_PCR3  S2     3   t11-t12  2    4                 0        3        1
+S3_PCR1  S3     1   t13-t14  1    8                 0        0        8
+S3_PCR2  S3     2   t15-t16  1    0                 0        0        0
+S3_PCR3  S3     3   t17-t18  2    8                 0        0        6
+S4_PCR1  S4     1   t19-t20  1    0                 0        0        0
+S4_PCR2  S4     2   t21-t22  1    0                 0        0        0
+S4_PCR3  S4     3   t23-t24  2    0                 0        0        0
+```
+
+(OTU_seq1 is A plus its 1-bp variant A2, OTU_seq2 is B, OTU_seq3 is C.)
+
+### Recipe
+
+```bash
+# 1. Per-PCR reads from the UNFILTERED comparisons file, plus PCRinfo.txt
+dame convert -i Comparisons_3PCRs.fasta --per-pcr --ps-info PSinfo.txt
+
+# 2. Reference: the DAMe-passed sequences, dereplicated
+#    (no --max-length here: with -u it pads with N, and padded sequences cannot match exactly;
+#     use vsearch --minseqlength/--maxseqlength for a length range)
+dame convert -i FilteredReads.fna -u
+vsearch --derep_fulllength FilteredReads.forusearch.fna --sizein --sizeout --relabel seq --output passed.fna
+
+# 3. Map: exact, contained matches of at least N bases (N a little below the amplicon length)
+vsearch --usearch_global FilteredReads.perpcr.fna --db passed.fna \
+    --id 1.0 --mincols 110 --query_cov 1.0 --otutabout table.tsv
+
+# 4. Cluster the passed sequences into OTUs
+vsearch --cluster_size passed.fna --sizein --id 0.97 --uc clusters.uc
+
+# 5. Sum sequences within OTUs, one row per PCR, all PCRs listed
+Rscript perpcr_to_occupancy.R table.tsv clusters.uc PCRinfo.txt survey.tsv
+```
+
+`table.tsv` has one row per passed sequence, so every step can be inspected and other
+clusterings (or LULU-style curation) can be tried without remapping.
+`perpcr_to_occupancy.R` is in this directory. Its output's first columns (`pcr_id` to
+`reads_pre_mapping`) are the per-PCR covariates; the `OTU_*` columns are the read counts.
+
+### Why these mapping options
+
+Checked with vsearch 2.31 and 2.32:
+
+- `--id 1.0` on its own is not an exact-match test: vsearch ignores end gaps when computing
+  identity, so any fragment of a reference scores 100% (a 30-bp fragment was counted as the full
+  sequence). `--mincols N` sets the shortest match accepted.
+- `--query_cov 1.0` makes every base of a read align, so a read must lie inside its reference
+  and cannot be longer than it. Without it, a read with extra bases at one end is accepted.
+  `--maxqt 1.0` is not a substitute: a read shifted off one end of its reference passes it.
+- `--minseqlength` does not filter reads in a search; it removes reference sequences. To drop
+  short reads, use `--min-length` on `convert --per-pcr`.
+- For markers whose length varies a lot, `--target_cov F` (fraction of the reference aligned)
+  is the length-relative alternative to `--mincols`.
+- A read can match two passed sequences equally if they differ only beyond its ends; vsearch
+  then picks one. This matters only when the two are in different OTUs.
+
+With these options a read counts only if it matches a DAMe-passed sequence exactly. Sequences
+that failed in every sample (errors, chimeras) match nothing. Mapping at a lower identity
+(`--id 0.97 --mincols N --query_cov 1.0`) lets error copies add their reads to their parent
+sequence, at some risk of also absorbing chimeras or reads of rare relatives.
+
+### Notes
+
+- **Use `Comparisons_<X>PCRs.fasta`, not `FilteredReads.fna`.** `FilteredReads.fna` has already
+  been filtered by `--y`/`--t`, so converting it per PCR brings the zeros back. `convert` warns
+  when the input file name starts with `FilteredReads`.
+- **`reads_pre_mapping`** counts every read written for that PCR, including reads that later
+  match nothing. It measures sequencing depth; it is not the row total of the mapped table.
+- **PCRs with no reads** have no column in `table.tsv`; `PCRinfo.txt` lists them with
+  `reads_pre_mapping = 0` and the R script adds them as all-zero rows. DAMe cannot tell a PCR
+  that was run and gave no reads from one that was never run; that is for you to decide.
+- **Without `--ps-info`**, samples with no reads in any PCR do not appear at all, empty PCRs have
+  `tag_pair = empty`, and there is no `pool` column.
+- Tag names containing `.`, `-` or `_` break the header format, as for `convert` and `rsi`.
+
 ---
 
 ## Section 7: Step 3 — RSI

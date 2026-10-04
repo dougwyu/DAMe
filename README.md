@@ -1,9 +1,9 @@
-# DAMe v3.1.0: DNA Metabarcoding toolkit
+# DAMe v3.2.0: DNA Metabarcoding toolkit
 
 DAMe demultiplexes pooled metabarcoding / eDNA FASTQ reads by primer and
 tag sequences (**sort**), optionally removes chimeric sequences (**chimera**),
 filters amplicons across PCR replicates (**filter**), converts filtered reads
-to USEARCH or sumaclust input (**convert**), computes the Renkonen Similarity
+to USEARCH or sumaclust input, or writes per-PCR reads for building occupancy-model tables (**convert**), computes the Renkonen Similarity
 Index between replicates (**rsi**), and expands collapsed sequences back to
 individual reads (**decollapse**).  It is available in two
 implementations:
@@ -158,6 +158,9 @@ dame convert  -i FilteredReads.fna [-u] [--min-length N] [--max-length N] [-s]
               → FilteredReads.forsumaclust.fna  (sumaclust input, default)
               → FilteredReads.forusearch.fna    (USEARCH input, with -u)
               → SampleFastas/<Sample>.fixed.fasta  (per-sample, with -s)
+dame convert  -i Comparisons_2PCRs.fasta --per-pcr [--ps-info PSinfo.txt] [--min-length N] [--max-length N]
+              → FilteredReads.perpcr.fna  (one record per PCR replicate, for mapping)
+              → PCRinfo.txt               (one row per PCR)
 
 dame rsi      Comparisons_2PCRs.txt
               → RSI_output.txt
@@ -356,6 +359,15 @@ codebase:
     also makes explicit that mismatch allowances cover substitutions only:
     primer and tag indels are not aligned or tolerated.
 
+16. **DAMe v3.2.0 -- Per-PCR output for occupancy models.**  `convert --per-pcr`
+    writes one record per PCR replicate, labelled `;size=N;sample=<sample>_PCR<k>;`,
+    plus `PCRinfo.txt` (one row per PCR, with `--ps-info` adding pools and
+    cross-checking tag pairs). Run on the unfiltered `Comparisons_<X>PCRs.fasta`
+    and mapped onto the DAMe-passed sequences, it gives a per-PCR table without
+    the zeros that `filter --y` writes into samples where a real sequence was
+    seen in too few PCRs. See the tutorial section "Per-PCR OTU tables for
+    occupancy and detection models".
+
 ## Documentation
 
 See `tutorial/README.md` for a full walkthrough covering all input file
@@ -415,6 +427,7 @@ bash tests/integration/run_sort_tag_mismatch.sh   # --tag-mismatches parity
 bash tests/integration/run_rsi.sh
 bash tests/integration/run_filter.sh
 bash tests/integration/run_convert.sh
+bash tests/integration/run_perpcr.sh           # --per-pcr; its vsearch and R steps skip if those tools are absent
 bash tests/integration/run_malformed.sh        # damaged-input parity
 bash tests/integration/run_decollapse.sh
 bash tests/integration/run_chimera.sh   # skips if usearch not found
@@ -434,6 +447,7 @@ python/                          Python 3 implementation (dame-py entry point)
     filter.py / modules_filter.py  Filter amplicons across PCR replicates
     chimera_check.py / modules_chimera_check.py  Chimera detection via usearch
     convert.py                   Convert FilteredReads.fna to USEARCH/sumaclust format
+    perpcr.py                    convert --per-pcr: per-PCR reads and PCRinfo.txt
     rsi.py                       Renkonen Similarity Index
     decollapse.py                Expand collapsed sequences back to reads
     utils.py                     Shared helpers (transparent gzip input)
@@ -447,6 +461,7 @@ rust/                            Rust implementation (dame binary)
     filter.rs                    Filter amplicons across PCR replicates
     chimera_check.rs             Chimera detection via usearch
     convert.rs                   Convert FilteredReads.fna to USEARCH/sumaclust format
+    perpcr.rs                    convert --per-pcr: per-PCR reads and PCRinfo.txt
     rsi.rs                       Renkonen Similarity Index
     decollapse.rs                Expand collapsed sequences back to reads
   tests/                         Rust integration tests (one file per subcommand)

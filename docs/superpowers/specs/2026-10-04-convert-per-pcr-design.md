@@ -62,7 +62,7 @@ combines sequences into OTUs:
 the sequence-level table. Renaming every member to the bare OTU name instead gives duplicate FASTA
 labels, which break other tools such as `makeblastdb -parse_seqids` and `samtools faidx`.)
 
-Why these mapping options (each checked with vsearch 2.31 against a 313-bp reference):
+Why these mapping options (each checked with vsearch 2.31 and 2.32 against a 313-bp reference):
 
 - `--id 1.0` alone is not an exact-match test. vsearch's default identity (`--iddef 2`) ignores
   terminal gaps, so any fragment of a reference scores 100%; a 30-bp fragment was counted as the
