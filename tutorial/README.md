@@ -347,8 +347,8 @@ way twice:
 2. **PCRs are summed.** `convert` adds the replicate counts into one record per sample.
 
 The fix is to keep DAMe's decision about *which* sequences are real, and rebuild the *counts* by
-mapping every read, PCR by PCR, onto those sequences. Ji et al. (2025) built their occPlus table
-this way.
+mapping every read, PCR by PCR, onto those sequences. [Ji et al. (2025)](https://doi.org/10.1111/ele.70302)
+built their occPlus table this way (see Reference below).
 
 ### Example
 
@@ -448,6 +448,10 @@ sequence, at some risk of also absorbing chimeras or reads of rare relatives.
 - **Without `--ps-info`**, samples with no reads in any PCR do not appear at all, empty PCRs have
   `tag_pair = empty`, and there is no `pool` column.
 - Tag names containing `.`, `-` or `_` break the header format, as for `convert` and `rsi`.
+
+### Reference
+
+Ji, Y., Diana, A., Li, X., Matechou, E., Griffin, J. E., Liu, S., Luo, M., Wu, C., Bai, R., Yao, C., Yin, T., Dong, F., Wu, F., Wang, K., Yu, Z., Chen, X., Jiang, X., Che, J., Yu, D. W., & Popescu, V. D. (2025). High Quality, Granular, Timely, Trustworthy and Efficient Vertebrate Species Distribution Data Across a 30,000 km² Protected Area Complex. *Ecology Letters*, 28(12), e70302. <https://doi.org/10.1111/ele.70302>
 
 ---
 
