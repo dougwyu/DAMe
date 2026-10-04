@@ -37,23 +37,51 @@ rebuilt by **mapping** every unfiltered read, per PCR, onto those sequences with
 tool. Ji et al. (2025) built the occPlus OTU table this way. DAMe's part is to emit the per-PCR
 reads in a tool-agnostic format.
 
-The recommended recipe (tutorial) is map, then cluster:
+The recommended recipe (tutorial) maps every read onto the passed sequences themselves, then
+combines sequences into OTUs:
 
 1. Dereplicate the DAMe-passed sequences into a reference FASTA (`convert -u` on
    `FilteredReads.fna`, then `vsearch --derep_fulllength`). Do not pass `--max-length` to
-   `convert` here: with `-u` it N-pads the reference, and padded sequences cannot match at 100%.
+   `convert` here: with `-u` it N-pads the reference, and padded sequences cannot match exactly.
    Apply the length range at dereplication instead (`--minseqlength`/`--maxseqlength`), matching
    the `--min-length`/`--max-length` given to `convert --per-pcr`.
-2. Map the per-PCR FASTA onto that reference at 100% identity (`vsearch --usearch_global --id 1.0
-   --otutabout`). This gives a per-PCR table with one column per passed sequence.
-3. Cluster the passed sequences into OTUs with any method, and sum the columns within each OTU.
+2. Cluster the reference into OTUs with any method that reports membership (e.g. `vsearch
+   --cluster_size --id 0.97 --uc clusters.uc`).
+3. Map the per-PCR FASTA onto the reference at 100% identity with a minimum aligned length:
+   `vsearch --usearch_global perpcr.fna --db passed.fna --id 1.0 --mincols N --otutabout
+   table.tsv`, where N is a little below the amplicon length (e.g. 300 for a 313-bp marker).
+4. Sum within OTUs, by either route:
+   - **Relabel (main route):** before step 3, rename each reference sequence to its OTU's name
+     from `clusters.uc`. `--otutabout` then sums hits on references that share a label, so the
+     table comes out with one row per OTU and one column per PCR. Verified with vsearch 2.31; the
+     tutorial names the version.
+   - **By hand:** map onto the unrenamed reference, which gives a table with one row per passed
+     sequence, then join to the membership and sum in R or Python. This keeps the sequence-level
+     table, for trying other clusterings or LULU-style curation.
 
-At 100% identity, a read is counted exactly when its sequence was accepted by DAMe in at least one
-sample: the motivating 1-read case is counted, and sequences that failed in every sample (errors,
-chimeras) match nothing and are dropped. The per-PCR FASTA contains those failed sequences too,
-so a user can instead map at a lower identity to let error variants add their reads to their
-parent sequence, at some risk of absorbing chimeras or rare relatives. Clustering first and then
-mapping onto OTU representatives also works. All of these use the same per-PCR FASTA.
+Why these mapping options (each checked with vsearch 2.31 against a 313-bp reference):
+
+- `--id 1.0` alone is not an exact-match test. vsearch's default identity (`--iddef 2`) ignores
+  terminal gaps, so any fragment of a reference scores 100%; a 30-bp fragment was counted as the
+  full sequence. `--mincols N` sets the shortest acceptable match: with N = 300, reads of 313 and
+  300 bp (from either end or the middle) were counted, 299 bp and a 300-bp read with one internal
+  mismatch were not.
+- `--minseqlength` is not a read-length filter in searches: it discards reference sequences, not
+  queries. A minimum read length can also be set upstream with `convert --per-pcr --min-length`.
+- Reads longer than the reference are also counted (a 313-bp match plus 7 overhanging bases was
+  accepted), since overhangs are terminal gaps too. Usually harmless, such as leftover primer; add
+  `--query_cov` to block it.
+- `--target_cov F` (fraction of the reference aligned) is the length-relative alternative to
+  `--mincols`, for markers whose length varies widely; `--target_cov 0.958` matched `--mincols
+  300` exactly on the 313-bp test.
+- A short read can match two passed sequences exactly when they differ only beyond its ends;
+  vsearch then picks one. This is irrelevant when both are in the same OTU and rare otherwise.
+
+With these options, a read is counted when it matches a DAMe-passed sequence exactly over at least
+N bases: the motivating 1-read case is counted, and sequences that failed in every sample (errors,
+chimeras) match nothing and are dropped. The per-PCR FASTA contains those failed sequences too, so
+a user can instead map at a lower identity (`--id 0.97 --mincols N`) to let error variants add
+their reads to their parent sequence, at some risk of absorbing chimeras or rare relatives.
 
 ### Scope
 
@@ -245,9 +273,10 @@ byte.
 **End to end:** `tests/integration/run_pipeline.sh` on the tutorial data runs sort, filter with
 `--y 2`, then `convert --per-pcr` on `Comparisons_2PCRs.fasta`, and checks that a (sample,
 sequence) pair absent from `FilteredReads.fna` is present in the per-PCR output. If `vsearch` is
-on PATH it also runs the tutorial recipe (dereplicate the passed sequences, `--usearch_global --id
-1.0 --otutabout`) and checks that the table's column names are a subset of `PCRinfo.txt`'s
-`pcr_id` and that the motivating pair has a non-zero cell; skipped otherwise, as the chimera tests
+on PATH it also runs the tutorial recipe (dereplicate and cluster the passed sequences, relabel by
+OTU, `--usearch_global --id 1.0 --mincols N --otutabout`) and checks that the table's column names
+are a subset of `PCRinfo.txt`'s `pcr_id`, that the motivating pair has a non-zero cell, and that
+the table has one row per OTU; skipped otherwise, as the chimera tests
 treat `usearch`. If the tutorial data has no pair that fails `--y 2`, the fixture generator
 (`tutorial/generate_tutorial_data.py`) gains one.
 
@@ -258,11 +287,12 @@ treat `usearch`. If the tutorial data has no pair that fails `--y 2`, the fixtur
 - **README.md:** the new flags and output files in the convert section and the pipeline summary;
   changelog entry 16 for v3.2.0.
 - **tutorial/README.md:** new section "Per-PCR OTU tables for occupancy and detection models":
-  the zeroing problem with a worked example; the map-then-cluster recipe from Background (`convert
-  --per-pcr --ps-info` on `Comparisons`; dereplicate the passed sequences; map with vsearch at
-  `--id 1.0`; cluster and sum columns; join to `PCRinfo.txt`; add zero rows for empty PCRs); why
-  100% is the default and what a lower identity changes; cluster-then-map as an alternative; the
-  `FilteredReads` caveat; and a note that Ji et al. (2025) built
+  the zeroing problem with a worked example; the recipe from Background (`convert --per-pcr
+  --ps-info` on `Comparisons`; dereplicate and cluster the passed sequences; map with
+  `--usearch_global --id 1.0 --mincols N`; sum within OTUs by relabelling or by hand; join to
+  `PCRinfo.txt`; add zero columns for empty PCRs); the mapping-option findings above, including
+  why `--id 1.0` needs `--mincols` and that `--minseqlength` does not filter reads; what a lower
+  identity changes; the `FilteredReads` caveat; and a note that Ji et al. (2025) built
   their occPlus table by mapping, with occJSDM as another consumer.
 - **Versions:** `python/pyproject.toml` and `rust/Cargo.toml` to 3.2.0.
 - **occJSDM (separate PR, later):** a one-line pointer to the tutorial section from Lesson 0's
