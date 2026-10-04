@@ -276,15 +276,31 @@ exit non-zero with the same message.
 and without `--ps-info`, and with length filters) and compares the FASTA and `PCRinfo.txt` byte for
 byte.
 
-**End to end:** `tests/integration/run_pipeline.sh` on the tutorial data runs sort, filter with
-`--y 2`, then `convert --per-pcr` on `Comparisons_2PCRs.fasta`, and checks that a (sample,
-sequence) pair absent from `FilteredReads.fna` is present in the per-PCR output. If `vsearch` is
-on PATH it also runs the tutorial recipe (dereplicate the passed sequences, `--usearch_global --id
-1.0 --mincols N --query_cov 1.0 --otutabout`) and checks that the table's column names are a
-subset of `PCRinfo.txt`'s `pcr_id`, that its rows are the passed sequences, and that the
-motivating pair has a non-zero cell; skipped otherwise, as the chimera tests
-treat `usearch`. If the tutorial data has no pair that fails `--y 2`, the fixture generator
-(`tutorial/generate_tutorial_data.py`) gains one.
+**End to end:** a new fixture, `tests/fixtures/perpcr/`, holds a small synthetic data set in
+`dame sort` output form (`pool1/`, `pool2/` tag-pair files) plus `PSinfo.txt`, and the script that
+generated it (seeded, so it can be regenerated). It was first built and run through `dame filter`,
+a prototype of this spec, vsearch 2.31 and the R join on 2026-10-04. Design: 4 samples x 3 PCRs,
+a 120-bp marker, filtered with `--x 3 --y 2 --t 1 --l 100`. Sequences:
+
+- A, B, C: three real sequences; A2: a 1-bp variant of A that also passes (same OTU at 97%);
+- the motivating case: B with 1 read in 1 PCR of S1 (fails `--y 2` there, passes in S2);
+- C with 1 read in S2 and A with 1 read in S2 (fail there, pass elsewhere);
+- E: a 2-substitution error copy of B, in S1 only (fails everywhere);
+- Bt: B trimmed to 112 bp, inside B (fails in S2, counted by mapping with `--mincols 110`);
+- Bs: a 90-bp fragment of B (rejected by `--mincols 110`);
+- S3 PCR2 has no reads at all (`empty-empty`), and S4 has no reads in any PCR (absent from
+  `Comparisons`, present only through `--ps-info`).
+
+`tests/integration/run_perpcr.sh` runs `filter`, then `convert --per-pcr --ps-info` with both
+implementations, and compares `FilteredReads.perpcr.fna` and `PCRinfo.txt` with committed
+expected files (15 records; 12 `PCRinfo.txt` rows, four of them `reads_pre_mapping = 0`). If
+`vsearch` is on PATH it also runs the recipe (dereplicate the passed sequences, `--usearch_global
+--id 1.0 --mincols 110 --query_cov 1.0 --otutabout`, `--cluster_size --id 0.97 --uc`) and checks
+the sequence-level table against a committed expected table: rows A, A2, B, C; B in `S1_PCR2` = 1;
+B in `S2_PCR3` = 3 (Bt); no column for `S3_PCR2` or S4. If `Rscript` with dplyr and tidyr is also
+available, it runs the tutorial's R snippet and checks the final 12-row table, including the
+summed `OTU_A` (55 in `S1_PCR1`) and the zero rows. Each optional step is skipped with a message
+when its tool is missing, as the chimera tests treat `usearch`.
 
 ---
 
@@ -293,7 +309,8 @@ treat `usearch`. If the tutorial data has no pair that fails `--y 2`, the fixtur
 - **README.md:** the new flags and output files in the convert section and the pipeline summary;
   changelog entry 16 for v3.2.0.
 - **tutorial/README.md:** new section "Per-PCR OTU tables for occupancy and detection models":
-  the zeroing problem with a worked example; the recipe from Background (`convert --per-pcr
+  the zeroing problem, worked through on the `tests/fixtures/perpcr/` data set (the usual
+  per-sample route beside the per-PCR result, so readers see the recovered detections); the recipe from Background (`convert --per-pcr
   --ps-info` on `Comparisons`; dereplicate the passed sequences; map with
   `--usearch_global --id 1.0 --mincols N --query_cov 1.0` to a sequence-level table; cluster and
   sum rows within OTUs in R; transpose to one row per PCR and join to `PCRinfo.txt`, adding
