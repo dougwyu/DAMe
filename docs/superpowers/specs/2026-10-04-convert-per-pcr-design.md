@@ -57,7 +57,7 @@ consistent with the existing flags (`-perPCR`, `-psInfo`).
 
 | Flag | Meaning |
 |------|---------|
-| `--per-pcr` | Write one record per non-zero PCR count instead of summing counts per sample |
+| `--per-pcr` | Write each PCR's reads as separate records instead of summing counts per sample. A zero count has no reads, so it gets no record; its zero appears in the mapped OTU table, and a PCR with no reads at all is listed in `PCRinfo.txt` |
 | `--ps-info FILE` | Optional. Adds `pool` and real tag pairs for empty PCRs to `PCRinfo.txt`, lists samples with no reads, and cross-checks tag pairs |
 | `-u`, `--min-length`, `--max-length` | Unchanged meaning, applied to each per-PCR record |
 | `-s` / `--sample-fastas` | Rejected in combination with `--per-pcr` |
