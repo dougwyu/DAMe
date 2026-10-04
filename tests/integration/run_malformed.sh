@@ -242,15 +242,17 @@ check_primers_refused primers_incomplete     "$MALFORMED/Primers_short_line.txt"
 # Both implementations must fail with exit 1, the same message, and no output files.
 check_perpcr_error() {
     local name="$1" message="$2"; shift 2
-    local d
+    local d rc
     for impl in py rs; do
         d="$WORK/perpcr_${name}_$impl"
         mkdir -p "$d"
+        rc=0
         if [ "$impl" = "py" ]; then
-            (cd "$d" && $TIMEOUT dame-py convert "$@" 2>stderr.txt) && fail "$name: dame-py succeeded"
+            (cd "$d" && $TIMEOUT dame-py convert "$@" 2>stderr.txt) || rc=$?
         else
-            (cd "$d" && $TIMEOUT "$DAME_BIN" convert "$@" 2>stderr.txt) && fail "$name: dame succeeded"
+            (cd "$d" && $TIMEOUT "$DAME_BIN" convert "$@" 2>stderr.txt) || rc=$?
         fi
+        [ "$rc" -eq 1 ] || fail "$name ($impl): exit status $rc, expected 1"
         [ "$(cat "$d/stderr.txt")" = "Error: $message" ] || fail "$name ($impl): got '$(cat "$d/stderr.txt")'"
         [ ! -e "$d/FilteredReads.perpcr.fna" ] && [ ! -e "$d/PCRinfo.txt" ] || fail "$name ($impl): left output"
     done

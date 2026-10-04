@@ -53,6 +53,12 @@ otu_by_pcr <- otu_table |>
   pivot_wider(names_from = otu, values_from = count)
 otu_cols <- setdiff(names(otu_by_pcr), "pcr_id")
 
+extra <- setdiff(otu_by_pcr$pcr_id, pcr_info$pcr_id)
+if (length(extra) > 0) {
+  stop("PCRs in ", args[1], " missing from ", args[3], ": ",
+       paste(head(extra, 5), collapse = ", "))
+}
+
 # Keep every PCR in PCRinfo; PCRs with no column in table.tsv had no matched reads
 survey <- pcr_info |>
   left_join(otu_by_pcr, by = "pcr_id") |>

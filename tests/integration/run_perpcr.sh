@@ -4,6 +4,8 @@
 #   filter reproduces the committed Comparisons/FilteredReads files;
 #   dame and dame-py write the expected per-PCR FASTA and PCRinfo.txt;
 #   optionally, the tutorial recipe (vsearch, then R) gives the expected tables.
+# The vsearch and R steps are skipped (SKIP) when their tools are missing. Set
+# PERPCR_REQUIRE_TOOLS=1 to make a missing vsearch, or missing Rscript/dplyr/tidyr, a FAIL.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -50,6 +52,7 @@ echo "PASS: per-PCR with PSinfo (dame and dame-py)"
 echo "==> convert --per-pcr without PSinfo..."
 for impl in py rs; do
     run_impl "$impl" "$WORK/nops_$impl" -i "$FIX/Comparisons_3PCRs.fasta" --per-pcr
+    diff "$WORK/nops_$impl/FilteredReads.perpcr.fna" "$EXP/FilteredReads.perpcr.fna" || fail "$impl FASTA (no PSinfo) differs from expected"
     diff "$WORK/nops_$impl/PCRinfo.txt" "$EXP/PCRinfo_no_psinfo.txt" || fail "$impl PCRinfo.txt (no PSinfo) differs"
 done
 echo "PASS: per-PCR without PSinfo"
@@ -73,6 +76,7 @@ grep -q "^Warning: --per-pcr input looks like FilteredReads output" "$WORK/warn_
 echo "PASS: warning and note"
 
 if ! command -v vsearch >/dev/null 2>&1; then
+    [ "${PERPCR_REQUIRE_TOOLS:-}" = "1" ] && fail "vsearch not on PATH (PERPCR_REQUIRE_TOOLS=1)"
     echo "SKIP: vsearch not on PATH; recipe check skipped"
     echo "PASS: per-PCR integration"
     exit 0
@@ -84,12 +88,13 @@ mkdir "$R"
 (cd "$R" && "$DAME_BIN" convert -i "$FIX/FilteredReads.fna" -u >/dev/null)
 (cd "$R" && vsearch --derep_fulllength FilteredReads.forusearch.fna --sizein --sizeout --relabel seq --output passed.fna --quiet)
 (cd "$R" && vsearch --usearch_global "$WORK/ps_rs/FilteredReads.perpcr.fna" --db passed.fna \
-    --id 1.0 --mincols 110 --query_cov 1.0 --otutabout table.tsv --quiet)
+    --sizein --id 1.0 --mincols 110 --query_cov 1.0 --otutabout table.tsv --quiet)
 diff "$R/table.tsv" "$EXP/table.tsv" || fail "vsearch table differs from expected"
 (cd "$R" && vsearch --cluster_size passed.fna --sizein --id 0.97 --uc clusters.uc --quiet)
 echo "PASS: vsearch recipe"
 
 if ! command -v Rscript >/dev/null 2>&1 || ! Rscript -e 'library(dplyr); library(tidyr)' >/dev/null 2>&1; then
+    [ "${PERPCR_REQUIRE_TOOLS:-}" = "1" ] && fail "Rscript with dplyr and tidyr not available (PERPCR_REQUIRE_TOOLS=1)"
     echo "SKIP: Rscript with dplyr and tidyr not available; R step skipped"
     echo "PASS: per-PCR integration"
     exit 0

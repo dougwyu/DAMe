@@ -254,8 +254,8 @@ fixed here.
 
 ## Testing
 
-**Unit tests**, Python (`python/tests/test_convert.py`, `test_filter.py`) and Rust (`convert.rs`,
-`filter.rs` test modules), against the `Comparisons_3PCRs.fasta` that `dame filter` produces
+**Unit tests**, Python (`python/tests/test_convert.py`, `test_filter.py`, `test_perpcr.py`) and Rust
+(`rust/tests/perpcr_test.rs`, `convert_perpcr_cli_test.rs`, `filter_test.rs`; none are in-module), against the `Comparisons_3PCRs.fasta` that `dame filter` produces
 from the `tests/fixtures/perpcr/` data set (committed alongside it) plus its `PSinfo.txt`, and
 small inline inputs where a case needs one, covering:
 
@@ -270,14 +270,17 @@ small inline inputs where a case needs one, covering:
 - the `FilteredReads` warning; the `-u` note; rejected flag combinations;
 - existing convert tests unchanged (default mode is byte-identical).
 
-**Malformed inputs** in `tests/fixtures/malformed/`, run by `tests/integration/run_malformed.sh`:
-counts/tag-pair length mismatch, inconsistent X, inconsistent tag pairs within a sample,
-non-integer count, PSinfo tag mismatch, sample missing from PSinfo. Both implementations must
-exit non-zero with the same message.
+**Malformed inputs** in `tests/fixtures/malformed/`, run by `tests/integration/run_malformed.sh`,
+cover three per-PCR error cases: counts/tag-pair length mismatch, non-integer count, and PSinfo
+tag mismatch. Both implementations must exit 1 with the same message and write no output. The
+full set of eight error messages (those three plus inconsistent X, inconsistent tag pairs within a
+sample, sample missing from PSinfo, wrong number of PSinfo rows for a sample, and empty input) is pinned by
+identical case lists in `python/tests/test_perpcr.py` and `rust/tests/perpcr_test.rs`.
 
-**Parity:** `tests/integration/run_convert.sh` runs both implementations in per-PCR mode (with
-and without `--ps-info`, and with length filters) and compares the FASTA and `PCRinfo.txt` byte for
-byte.
+**Parity:** `tests/integration/run_perpcr.sh` runs both implementations in per-PCR mode (with and
+without `--ps-info`, and with length filters) and compares the FASTA and `PCRinfo.txt` byte for
+byte, against the committed expected files where they exist and between the two implementations
+otherwise.
 
 **End to end:** a new fixture, `tests/fixtures/perpcr/`, holds a small synthetic data set in
 `dame sort` output form (`pool1/`, `pool2/` tag-pair files) plus `PSinfo.txt`, and the script that
@@ -303,7 +306,7 @@ the sequence-level table against a committed expected table: rows `seq1`..`seq4`
 numbered by `--derep_fulllength --relabel seq` in order of abundance); B in `S1_PCR2` = 1; B in
 `S2_PCR3` = 3 (Bt); no column for `S3_PCR2` or S4. If `Rscript` with dplyr and tidyr is also
 available, it runs `tutorial/perpcr_to_occupancy.R` and checks the final 12-row table, including the
-summed `OTU_A` (55 in `S1_PCR1`) and the zero rows. Each optional step is skipped with a message
+summed column `OTU_seq1` (55 in `S1_PCR1`) and the zero rows. Each optional step is skipped with a message
 when its tool is missing, as the chimera tests treat `usearch`.
 
 ---

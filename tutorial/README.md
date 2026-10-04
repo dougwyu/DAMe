@@ -330,6 +330,8 @@ dame-py convert -i FilteredReads.fna -s
 | `--min-length N` | Drop sequences shorter than N |
 | `--max-length N` | Drop sequences longer than N; pad to N in USEARCH mode |
 | `-s` / `--sample-fastas` | Write per-sample fastas to `SampleFastas/` |
+| `--per-pcr` | One FASTA record per sequence per PCR, plus `PCRinfo.txt`; see [Per-PCR OTU tables](#per-pcr-otu-tables-for-occupancy-and-detection-models) |
+| `--ps-info FILE` | With `--per-pcr`: `PSinfo.txt`, so samples with no reads still get `PCRinfo.txt` rows; see the same section |
 
 `dame-py` also accepts the original v1.0 spellings: `--inFasta`, `-lmin`, `-lmax`, `--sampleFastas`.
 
@@ -355,10 +357,12 @@ After `filter --x 3 --y 2 --t 1 --l 100`, the usual route gives:
 
 ```
 sample  OTU_A  OTU_B  OTU_C
-S1        146      0      0     B was seen in S1 PCR2 (1 read)
-S2          0     55      0     C and A were each seen once in S2
+S1        146      0      0
+S2          0     55      0
 S3          0      0     14
 ```
+
+In this table, B is missing from S1 although it was seen once, in S1 PCR2; and C and A, each seen once in S2, are missing from S2.
 
 The per-PCR route below gives one row per PCR, keeps those detections, and lists every PCR,
 including S3 PCR2 (no reads) and sample S4 (no reads in any PCR):
@@ -395,7 +399,7 @@ vsearch --derep_fulllength FilteredReads.forusearch.fna --sizein --sizeout --rel
 
 # 3. Map: exact, contained matches of at least N bases (N a little below the amplicon length)
 vsearch --usearch_global FilteredReads.perpcr.fna --db passed.fna \
-    --id 1.0 --mincols 110 --query_cov 1.0 --otutabout table.tsv
+    --sizein --id 1.0 --mincols 110 --query_cov 1.0 --otutabout table.tsv
 
 # 4. Cluster the passed sequences into OTUs
 vsearch --cluster_size passed.fna --sizein --id 0.97 --uc clusters.uc
@@ -563,13 +567,17 @@ dame convert -i FilteredReads.fna
 dame convert -i FilteredReads.fna -u
 dame convert -i FilteredReads.fna -u --max-length 313
 dame convert -i FilteredReads.fna -s
+dame convert -i Comparisons_3PCRs.fasta --per-pcr --ps-info PSinfo.txt
 
 # dame-py (Python) — also accepts v1.0 spellings: --inFasta, -lmin, -lmax, --sampleFastas
 dame-py convert -i FilteredReads.fna
 dame-py convert -i FilteredReads.fna -u
 dame-py convert -i FilteredReads.fna -u --max-length 313
 dame-py convert -i FilteredReads.fna -s
+dame-py convert -i Comparisons_3PCRs.fasta --per-pcr --ps-info PSinfo.txt
 ```
+
+For per-PCR output, `dame` takes `--per-pcr` and `--ps-info`; `dame-py` also accepts the single-dash aliases `-perPCR` and `-psInfo`. See the per-PCR section above.
 
 ### Decollapse
 
@@ -714,3 +722,5 @@ dame decollapse --input pool1/tag1_tag2.txt --out-fas tag1_tag2_decollapsed.fast
 | Tags.txt     | `TagSeq TAB TagName`                          |
 | PSinfo.txt   | `SampleName TAB FwdTag TAB RevTag TAB PoolNum`|
 | tagA_tagB.txt| `PrimerName TAB Tag1 TAB Tag2 TAB Count TAB Seq` |
+| FilteredReads.perpcr.fna | `>Seq;size=N;sample=<sample>_PCR<k>;` then sequence (convert `--per-pcr`) |
+| PCRinfo.txt  | One row per PCR: `pcr_id`, sample, pcr, tag_pair, pool, `reads_pre_mapping` (convert `--per-pcr`) |

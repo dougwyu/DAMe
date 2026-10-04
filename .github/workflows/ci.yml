@@ -86,7 +86,9 @@ jobs:
         run: bash tests/integration/run_convert.sh
       - name: Install vsearch and R (for the per-PCR recipe check)
         run: sudo apt-get update && sudo apt-get install -y vsearch r-base-core r-cran-dplyr r-cran-tidyr
-      - name: Run per-PCR convert integration test (vsearch/R steps skip if absent)
+      - name: Run per-PCR convert integration test (vsearch and R required)
+        env:
+          PERPCR_REQUIRE_TOOLS: "1"
         run: bash tests/integration/run_perpcr.sh
       - name: Run malformed-input integration test
         run: bash tests/integration/run_malformed.sh
