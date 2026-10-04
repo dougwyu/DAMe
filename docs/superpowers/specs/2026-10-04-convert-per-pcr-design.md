@@ -40,9 +40,10 @@ reads in a tool-agnostic format.
 The recommended recipe (tutorial) is map, then cluster:
 
 1. Dereplicate the DAMe-passed sequences into a reference FASTA (`convert -u` on
-   `FilteredReads.fna`, then `vsearch --derep_fulllength`). Do not pass `--max-length` here:
-   with `-u` it N-pads the reference, and padded sequences cannot match at 100%. Apply the same
-   `--min-length`/`--max-length` limits to both files so they cover the same length range.
+   `FilteredReads.fna`, then `vsearch --derep_fulllength`). Do not pass `--max-length` to
+   `convert` here: with `-u` it N-pads the reference, and padded sequences cannot match at 100%.
+   Apply the length range at dereplication instead (`--minseqlength`/`--maxseqlength`), matching
+   the `--min-length`/`--max-length` given to `convert --per-pcr`.
 2. Map the per-PCR FASTA onto that reference at 100% identity (`vsearch --usearch_global --id 1.0
    --otutabout`). This gives a per-PCR table with one column per passed sequence.
 3. Cluster the passed sequences into OTUs with any method, and sum the columns within each OTU.
