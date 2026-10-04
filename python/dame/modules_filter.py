@@ -50,6 +50,26 @@ def MakeSampleNameArray(PSinfo):
     return sampleName
 
 
+def readPSinfoRows(PSinfo, X):
+    """Return (sample, pcr, tag_pair, pool) for each usable PSinfo line.
+
+    PCR numbers (1..X) follow exactly the line-number rule makePSnumFiles uses
+    to assign replicate files: blank and short lines are skipped but still
+    advance the line number. Keeping one rule means convert --per-pcr and
+    filter cannot disagree about which PCR is which.
+    """
+    rows = []
+    with open(PSinfo) as f:
+        for NR, line in enumerate(f, start=1):
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            residue = NR % X
+            pcr = residue if residue != 0 else X
+            rows.append((parts[0], pcr, "%s-%s" % (parts[1], parts[2]), parts[3]))
+    return rows
+
+
 def ReadHapsForASample(X, PSinsLines, i):
     haps = {}
     for j in range(X):

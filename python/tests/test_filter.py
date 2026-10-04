@@ -2,7 +2,7 @@ import pytest
 import os
 from io import StringIO
 from dame.modules_filter import (
-    makePSnumFiles, ReadPSnumFiles, MakeSampleNameArray,
+    makePSnumFiles, ReadPSnumFiles, MakeSampleNameArray, readPSinfoRows,
     ReadHapsForASample, buildReplicateIndexes, allSequences, MakeComparisonFile,
 )
 
@@ -123,3 +123,34 @@ def test_short_psinfo_line_is_skipped(tmp_path, monkeypatch):
     makePSnumFiles(str(psinfo), 2, 1, False)
     assert (tmp_path / "PS1_files.txt").read_text() == "pool1/tag1_tag2.txt\npool1/tag5_tag6.txt\n"
     assert (tmp_path / "PS2_files.txt").read_text() == ""
+
+
+def test_readPSinfoRows_assigns_pcr_numbers(tmp_path):
+    psinfo = write_psinfo(tmp_path, [
+        "S1\tt1\tt2\t1",
+        "S1\tt3\tt4\t1",
+        "S1\tt5\tt6\t2",
+        "S2\tt7\tt8\t1",
+        "S2\tt9\tt10\t1",
+        "S2\tt11\tt12\t2",
+    ])
+    assert readPSinfoRows(psinfo, 3) == [
+        ("S1", 1, "t1-t2", "1"), ("S1", 2, "t3-t4", "1"), ("S1", 3, "t5-t6", "2"),
+        ("S2", 1, "t7-t8", "1"), ("S2", 2, "t9-t10", "1"), ("S2", 3, "t11-t12", "2"),
+    ]
+
+
+def test_readPSinfoRows_blank_line_consumes_a_slot_like_makePSnumFiles(tmp_path, monkeypatch):
+    # A blank line still advances the line number, so the next row lands in the
+    # slot after it, exactly as makePSnumFiles assigns replicate files.
+    lines = ["S1\tt1\tt2\t1", "", "S1\tt3\tt4\t1"]
+    psinfo = write_psinfo(tmp_path, lines)
+    assert readPSinfoRows(psinfo, 2) == [("S1", 1, "t1-t2", "1"), ("S1", 1, "t3-t4", "1")]
+    monkeypatch.chdir(tmp_path)
+    makePSnumFiles(psinfo, X=2, P=1, chimeraChecked=False)
+    assert open("PS1_files.txt").read() == "pool1/t1_t2.txt\npool1/t3_t4.txt\n"
+
+
+def test_readPSinfoRows_skips_short_lines(tmp_path):
+    psinfo = write_psinfo(tmp_path, ["S1\tt1\tt2\t1", "S1\tt3", "S1\tt5\tt6\t1"])
+    assert readPSinfoRows(psinfo, 3) == [("S1", 1, "t1-t2", "1"), ("S1", 3, "t5-t6", "1")]
