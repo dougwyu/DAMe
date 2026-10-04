@@ -84,6 +84,8 @@ jobs:
         run: bash tests/integration/run_filter.sh
       - name: Run convert integration test
         run: bash tests/integration/run_convert.sh
+      - name: Run per-PCR convert integration test (vsearch/R steps skip if absent)
+        run: bash tests/integration/run_perpcr.sh
       - name: Run malformed-input integration test
         run: bash tests/integration/run_malformed.sh
       - name: Run chimera integration test (skips if no usearch)

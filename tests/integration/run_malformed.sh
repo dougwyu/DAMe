@@ -14,6 +14,7 @@
 #   short convert header                        ->  Python died with IndexError
 #   single-column rsi input                     ->  Rust looped forever
 #   blank FASTQ sequence line                   ->  Python truncated the run
+#   per-PCR convert errors                      ->  new in v3.2.0; both must refuse identically
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -236,5 +237,32 @@ check_primers_refused() {
 }
 check_primers_refused primers_duplicate_name "$MALFORMED/Primers_duplicate_name.txt" "duplicate primer set name"
 check_primers_refused primers_incomplete     "$MALFORMED/Primers_short_line.txt"     "incomplete primer entry"
+
+# check_perpcr_error <name> <expected message> <convert args...>
+# Both implementations must fail with exit 1, the same message, and no output files.
+check_perpcr_error() {
+    local name="$1" message="$2"; shift 2
+    local d
+    for impl in py rs; do
+        d="$WORK/perpcr_${name}_$impl"
+        mkdir -p "$d"
+        if [ "$impl" = "py" ]; then
+            (cd "$d" && $TIMEOUT dame-py convert "$@" 2>stderr.txt) && fail "$name: dame-py succeeded"
+        else
+            (cd "$d" && $TIMEOUT "$DAME_BIN" convert "$@" 2>stderr.txt) && fail "$name: dame succeeded"
+        fi
+        [ "$(cat "$d/stderr.txt")" = "Error: $message" ] || fail "$name ($impl): got '$(cat "$d/stderr.txt")'"
+        [ ! -e "$d/FilteredReads.perpcr.fna" ] && [ ! -e "$d/PCRinfo.txt" ] || fail "$name ($impl): left output"
+    done
+    echo "PASS: convert --per-pcr, $name"
+}
+
+echo "==> convert --per-pcr with damaged inputs..."
+check_perpcr_error counts_mismatch "record 1 for sample S1 has 3 counts but 2 tag pairs" \
+    -i "$MALFORMED/Comparisons_perpcr_counts_mismatch.fasta" --per-pcr
+check_perpcr_error non_integer "record 1 for sample S1 has a non-integer count 'x'" \
+    -i "$MALFORMED/Comparisons_perpcr_non_integer.fasta" --per-pcr
+check_perpcr_error tag_mismatch "sample S1 PCR 2: tag pair t3-t4 in the input but t3-t9 in PSinfo" \
+    -i "$FIXTURES/perpcr/Comparisons_3PCRs.fasta" --per-pcr --ps-info "$MALFORMED/PSinfo_perpcr_tag_mismatch.txt"
 
 echo "PASS: dame and dame-py agree on malformed input"
