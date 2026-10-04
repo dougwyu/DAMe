@@ -299,9 +299,10 @@ implementations, and compares `FilteredReads.perpcr.fna` and `PCRinfo.txt` with 
 expected files (15 records; 12 `PCRinfo.txt` rows, four of them `reads_pre_mapping = 0`). If
 `vsearch` is on PATH it also runs the recipe (dereplicate the passed sequences, `--usearch_global
 --id 1.0 --mincols 110 --query_cov 1.0 --otutabout`, `--cluster_size --id 0.97 --uc`) and checks
-the sequence-level table against a committed expected table: rows A, A2, B, C; B in `S1_PCR2` = 1;
-B in `S2_PCR3` = 3 (Bt); no column for `S3_PCR2` or S4. If `Rscript` with dplyr and tidyr is also
-available, it runs the tutorial's R snippet and checks the final 12-row table, including the
+the sequence-level table against a committed expected table: rows `seq1`..`seq4` (A, B, C, A2,
+numbered by `--derep_fulllength --relabel seq` in order of abundance); B in `S1_PCR2` = 1; B in
+`S2_PCR3` = 3 (Bt); no column for `S3_PCR2` or S4. If `Rscript` with dplyr and tidyr is also
+available, it runs `tutorial/perpcr_to_occupancy.R` and checks the final 12-row table, including the
 summed `OTU_A` (55 in `S1_PCR1`) and the zero rows. Each optional step is skipped with a message
 when its tool is missing, as the chimera tests treat `usearch`.
 
@@ -317,7 +318,7 @@ when its tool is missing, as the chimera tests treat `usearch`.
   --ps-info` on `Comparisons`; dereplicate the passed sequences; map with
   `--usearch_global --id 1.0 --mincols N --query_cov 1.0` to a sequence-level table; cluster and
   sum rows within OTUs in R; transpose to one row per PCR and join to `PCRinfo.txt`, adding
-  all-zero rows for PCRs with no column), as an R snippet ending in occJSDM-style `info` and `OTU`;
+  all-zero rows for PCRs with no column), as the script `tutorial/perpcr_to_occupancy.R` (shared with the end-to-end test) ending in one row per PCR, ready to split into occJSDM-style `info` and `OTU`. The script strips `;size=` annotations, since vsearch drops them from table row names but keeps them in `.uc` files, and stops if any sequence has no OTU;
   the mapping-option findings above, including why `--id 1.0` needs `--mincols` and
   `--query_cov 1.0` and that `--minseqlength` does not filter reads; the `otu=` shortcut; what a lower
   identity changes; the `FilteredReads` caveat; and a note that Ji et al. (2025) built
