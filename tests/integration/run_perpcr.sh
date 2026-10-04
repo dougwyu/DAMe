@@ -97,7 +97,8 @@ fi
 
 echo "==> recipe: R join..."
 Rscript "$REPO_ROOT/tutorial/perpcr_to_occupancy.R" "$R/table.tsv" "$R/clusters.uc" \
-    "$WORK/ps_rs/PCRinfo.txt" "$R/survey.tsv" 2>/dev/null
+    "$WORK/ps_rs/PCRinfo.txt" "$R/survey.tsv" 2>"$WORK/rscript.err" \
+    || { cat "$WORK/rscript.err"; fail "Rscript perpcr_to_occupancy.R failed"; }
 diff "$R/survey.tsv" "$EXP/survey.tsv" || fail "survey table differs from expected"
 echo "PASS: R join"
 
