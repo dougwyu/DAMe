@@ -183,14 +183,14 @@ order with `--ps-info`, else input order) then PCR number.
 | `pcr` | k, 1 to X |
 | `tag_pair` | `Ftag-Rtag`; `empty` for a PCR with no reads when `--ps-info` is not given |
 | `pool` | Only with `--ps-info`: PSinfo column 4 |
-| `reads` | Total count written to the FASTA for this PCR, after length filters; 0 for empty PCRs |
+| `reads_pre_mapping` | Total count written to the FASTA for this PCR, after length filters; 0 for empty PCRs. Includes reads that later match no reference sequence (errors, chimeras, short fragments), so it is a sequencing-depth measure, not the row total of the mapped table |
 
-Empty PCRs are listed with `reads = 0` so users can add the all-zero rows that mapping cannot
+Empty PCRs are listed with `reads_pre_mapping = 0` so users can add the all-zero rows that mapping cannot
 create. DAMe cannot tell "run but yielded no reads" from "never run"; the docs say so and leave
 it to the user.
 
 With `--ps-info`, a sample present in PSinfo but absent from the input (no reads in any PCR, so
-`filter` wrote nothing for it) gets X rows with `reads = 0`. Without PSinfo such a sample is
+`filter` wrote nothing for it) gets X rows with `reads_pre_mapping = 0`. Without PSinfo such a sample is
 invisible; the docs say so.
 
 ---
@@ -258,7 +258,7 @@ PSinfo, covering:
 
 - a sequence with 1 read in 1 PCR becomes one record with `size=1` under the right PCR ID;
 - zero counts produce no record; PCR numbers follow header position;
-- an `empty-empty` PCR, and a PSinfo sample with no records (`reads = 0` rows, real tag pair and
+- an `empty-empty` PCR, and a PSinfo sample with no records (`reads_pre_mapping = 0` rows, real tag pair and
   pool with `--ps-info`, `empty` without);
 - length filters on per-PCR records, with no padding even when `--max-length` is given; record
   counter numbering;
