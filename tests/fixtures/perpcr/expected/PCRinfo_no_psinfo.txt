@@ -1,0 +1,10 @@
+pcr_id	sample	pcr	tag_pair	reads_pre_mapping
+S1_PCR1	S1	1	t1-t2	57
+S1_PCR2	S1	2	t3-t4	47
+S1_PCR3	S1	3	t5-t6	45
+S2_PCR1	S2	1	t7-t8	30
+S2_PCR2	S2	2	t9-t10	26
+S2_PCR3	S2	3	t11-t12	4
+S3_PCR1	S3	1	t13-t14	8
+S3_PCR2	S3	2	empty	0
+S3_PCR3	S3	3	t17-t18	8

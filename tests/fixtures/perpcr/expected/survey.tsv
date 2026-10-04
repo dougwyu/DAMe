@@ -1,0 +1,13 @@
+pcr_id	sample	pcr	tag_pair	pool	reads_pre_mapping	OTU_seq1	OTU_seq2	OTU_seq3
+S1_PCR1	S1	1	t1-t2	1	57	55	0	0
+S1_PCR2	S1	2	t3-t4	1	47	46	1	0
+S1_PCR3	S1	3	t5-t6	2	45	45	0	0
+S2_PCR1	S2	1	t7-t8	1	30	0	30	0
+S2_PCR2	S2	2	t9-t10	1	26	1	25	0
+S2_PCR3	S2	3	t11-t12	2	4	0	3	1
+S3_PCR1	S3	1	t13-t14	1	8	0	0	8
+S3_PCR2	S3	2	t15-t16	1	0	0	0	0
+S3_PCR3	S3	3	t17-t18	2	8	0	0	6
+S4_PCR1	S4	1	t19-t20	1	0	0	0	0
+S4_PCR2	S4	2	t21-t22	1	0	0	0	0
+S4_PCR3	S4	3	t23-t24	2	0	0	0	0
