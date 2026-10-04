@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-04
 **Branch:** `convert-per-pcr`
-**Status:** Draft, awaiting review
+**Status:** Approved, proceed to implementation plan
 
 ---
 
@@ -84,10 +84,11 @@ Why these mapping options (each checked with vsearch 2.31 against a 313-bp refer
   vsearch then picks one. This is irrelevant when both are in the same OTU and rare otherwise.
 
 With these options, a read is counted when it is an exact, contained match of at least N bases to
-a DAMe-passed sequence: the motivating 1-read case is counted, and sequences that failed in every sample (errors,
-chimeras) match nothing and are dropped. The per-PCR FASTA contains those failed sequences too, so
-a user can instead map at a lower identity (`--id 0.97 --mincols N --query_cov 1.0`) to let error variants add
-their reads to their parent sequence, at some risk of absorbing chimeras or rare relatives.
+a DAMe-passed sequence: the motivating 1-read case is counted, and sequences that failed in every
+sample (errors, chimeras) match nothing and are dropped. The per-PCR FASTA contains those failed
+sequences too, so a user can instead map at a lower identity (`--id 0.97 --mincols N --query_cov
+1.0`) to let error variants add their reads to their parent sequence, at some risk of absorbing
+chimeras or rare relatives.
 
 ### Scope
 
@@ -131,7 +132,8 @@ Records as written by `dame filter`, two lines each:
 ACGT...
 ```
 
-Header tokens (whitespace-separated, as `convert` already parses them):
+Header tokens (whitespace-separated, as `convert` already parses them; real `filter` output has
+a doubled tab before the counts, which whitespace splitting absorbs):
 
 1. `>` + sample name (PSinfo column 1)
 2. tag pairs for PCR 1..X joined by `.`, with `_<record id>` appended to the last; a PCR with no
@@ -253,8 +255,9 @@ fixed here.
 ## Testing
 
 **Unit tests**, Python (`python/tests/test_convert.py`, `test_filter.py`) and Rust (`convert.rs`,
-`filter.rs` test modules), against one small fixture: a three-PCR `Comparisons` FASTA plus a
-PSinfo, covering:
+`filter.rs` test modules), against the `Comparisons_3PCRs.fasta` that `dame filter` produces
+from the `tests/fixtures/perpcr/` data set (committed alongside it) plus its `PSinfo.txt`, and
+small inline inputs where a case needs one, covering:
 
 - a sequence with 1 read in 1 PCR becomes one record with `size=1` under the right PCR ID;
 - zero counts produce no record; PCR numbers follow header position;
