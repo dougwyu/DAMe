@@ -399,7 +399,7 @@ vsearch --derep_fulllength FilteredReads.forusearch.fna --sizein --sizeout --rel
 
 # 3. Map: exact, contained matches of at least N bases (N a little below the amplicon length)
 vsearch --usearch_global FilteredReads.perpcr.fna --db passed.fna \
-    --sizein --id 1.0 --mincols 110 --query_cov 1.0 --otutabout table.tsv
+    --id 1.0 --mincols 110 --query_cov 1.0 --otutabout table.tsv
 
 # 4. Cluster the passed sequences into OTUs
 vsearch --cluster_size passed.fna --sizein --id 0.97 --uc clusters.uc

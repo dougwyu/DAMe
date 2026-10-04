@@ -88,7 +88,7 @@ mkdir "$R"
 (cd "$R" && "$DAME_BIN" convert -i "$FIX/FilteredReads.fna" -u >/dev/null)
 (cd "$R" && vsearch --derep_fulllength FilteredReads.forusearch.fna --sizein --sizeout --relabel seq --output passed.fna --quiet)
 (cd "$R" && vsearch --usearch_global "$WORK/ps_rs/FilteredReads.perpcr.fna" --db passed.fna \
-    --sizein --id 1.0 --mincols 110 --query_cov 1.0 --otutabout table.tsv --quiet)
+    --id 1.0 --mincols 110 --query_cov 1.0 --otutabout table.tsv --quiet)
 diff "$R/table.tsv" "$EXP/table.tsv" || fail "vsearch table differs from expected"
 (cd "$R" && vsearch --cluster_size passed.fna --sizein --id 0.97 --uc clusters.uc --quiet)
 echo "PASS: vsearch recipe"
