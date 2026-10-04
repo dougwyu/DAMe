@@ -104,6 +104,34 @@ pub fn make_sample_name_array(ps_info: &str) -> Result<Vec<String>> {
     Ok(sample_names)
 }
 
+/// Returns (sample, pcr, tag_pair, pool) for each usable PSinfo line.
+///
+/// PCR numbers (1..=x) follow exactly the line-number rule `make_ps_num_files`
+/// uses to assign replicate files: blank and short lines are skipped but still
+/// advance the line number. Keeping one rule means `convert --per-pcr` and
+/// `filter` cannot disagree about which PCR is which.
+pub fn ps_info_rows(ps_info: &str, x: usize) -> Result<Vec<(String, usize, String, String)>> {
+    let reader =
+        BufReader::new(File::open(ps_info).with_context(|| format!("opening {}", ps_info))?);
+    let mut rows = Vec::new();
+    for (nr, line) in reader.lines().enumerate() {
+        let line = line?;
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 4 {
+            continue;
+        }
+        let residue = (nr + 1) % x;
+        let pcr = if residue != 0 { residue } else { x };
+        rows.push((
+            parts[0].to_string(),
+            pcr,
+            format!("{}-{}", parts[1], parts[2]),
+            parts[3].to_string(),
+        ));
+    }
+    Ok(rows)
+}
+
 /// Reads haplotype data for sample `i` across all PCR replicates.
 /// Returns a map of replicate index (0-based) -> list of rows (each row is a Vec<String>).
 pub fn read_haps_for_a_sample(

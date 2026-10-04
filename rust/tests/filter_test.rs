@@ -1,6 +1,7 @@
 use ahash::HashMap;
 use dame::filter::{
-    all_sequences, index_haps, make_ps_num_files, make_sample_name_array, read_ps_num_files,
+    all_sequences, index_haps, make_ps_num_files, make_sample_name_array, ps_info_rows,
+    read_ps_num_files,
 };
 use std::io::Write;
 use std::sync::Mutex;
@@ -215,4 +216,52 @@ fn test_index_haps_short_first_row_uses_empty_tags() {
     assert_eq!(index[&0].forward_tag, "");
     assert_eq!(index[&0].reverse_tag, "");
     assert_eq!(index[&0].counts_by_sequence["AAAA"], 4);
+}
+
+#[test]
+fn test_ps_info_rows_assigns_pcr_numbers() {
+    let dir = tempdir().unwrap();
+    let psinfo = write_psinfo(
+        dir.path(),
+        &[
+            "S1\tt1\tt2\t1",
+            "S1\tt3\tt4\t1",
+            "S1\tt5\tt6\t2",
+            "S2\tt7\tt8\t1",
+            "S2\tt9\tt10\t1",
+            "S2\tt11\tt12\t2",
+        ],
+    );
+    let rows = ps_info_rows(psinfo.to_str().unwrap(), 3).unwrap();
+    let expected: Vec<(String, usize, String, String)> = vec![
+        ("S1", 1, "t1-t2", "1"),
+        ("S1", 2, "t3-t4", "1"),
+        ("S1", 3, "t5-t6", "2"),
+        ("S2", 1, "t7-t8", "1"),
+        ("S2", 2, "t9-t10", "1"),
+        ("S2", 3, "t11-t12", "2"),
+    ]
+    .into_iter()
+    .map(|(s, k, t, p)| (s.to_string(), k, t.to_string(), p.to_string()))
+    .collect();
+    assert_eq!(rows, expected);
+}
+
+#[test]
+fn test_ps_info_rows_blank_line_consumes_a_slot() {
+    let dir = tempdir().unwrap();
+    let psinfo = write_psinfo(dir.path(), &["S1\tt1\tt2\t1", "", "S1\tt3\tt4\t1"]);
+    let rows = ps_info_rows(psinfo.to_str().unwrap(), 2).unwrap();
+    assert_eq!(rows[0].1, 1);
+    assert_eq!(rows[1].1, 1);
+    assert_eq!(rows[1].2, "t3-t4");
+}
+
+#[test]
+fn test_ps_info_rows_skips_short_lines() {
+    let dir = tempdir().unwrap();
+    let psinfo = write_psinfo(dir.path(), &["S1\tt1\tt2\t1", "S1\tt3", "S1\tt5\tt6\t1"]);
+    let rows = ps_info_rows(psinfo.to_str().unwrap(), 3).unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!((rows[1].1, rows[1].2.as_str()), (3, "t5-t6"));
 }
