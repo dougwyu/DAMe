@@ -1,6 +1,7 @@
 # python/tests/test_convert.py
 import os
 import pytest
+from pathlib import Path
 from dame.convert import convert, _parse_fasta
 
 
@@ -212,3 +213,63 @@ def test_unparseable_count_part_is_ignored(tmp_path):
     records = list(_parse_fasta(str(fna)))
     # 5 + 4; the "x" is skipped rather than raising ValueError.
     assert records == [("Sample1", 9, "ACGT")]
+
+
+PERPCR_FIXTURE = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "perpcr"
+
+
+def _parser():
+    import argparse
+    import dame.convert as conv
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers()
+    conv.register_subcommand(sub)
+    return parser
+
+
+def test_convert_argparser_per_pcr_flags():
+    args = _parser().parse_args(["convert", "-i", "x.fasta", "--per-pcr", "--ps-info", "PS.txt"])
+    assert args.per_pcr is True
+    assert args.ps_info == "PS.txt"
+    legacy = _parser().parse_args(["convert", "-i", "x.fasta", "-perPCR", "-psInfo", "PS.txt"])
+    assert legacy.per_pcr is True
+    assert legacy.ps_info == "PS.txt"
+    default = _parser().parse_args(["convert", "-i", "x.fasta"])
+    assert default.per_pcr is False
+    assert default.ps_info is None
+
+
+def test_run_per_pcr_writes_outputs(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    args = _parser().parse_args([
+        "convert", "-i", str(PERPCR_FIXTURE / "Comparisons_3PCRs.fasta"),
+        "--per-pcr", "--ps-info", str(PERPCR_FIXTURE / "PSinfo.txt"),
+    ])
+    args.func(args)
+    expected = PERPCR_FIXTURE / "expected"
+    assert open("FilteredReads.perpcr.fna").read() == (expected / "FilteredReads.perpcr.fna").read_text()
+    assert open("PCRinfo.txt").read() == (expected / "PCRinfo.txt").read_text()
+    assert not os.path.exists("FilteredReads.forsumaclust.fna")
+
+
+@pytest.mark.parametrize("argv,message", [
+    (["--per-pcr", "-s"], "Error: --sample-fastas cannot be used with --per-pcr"),
+    (["--ps-info", "PS.txt"], "Error: --ps-info requires --per-pcr"),
+])
+def test_run_rejects_flag_combinations(tmp_path, monkeypatch, argv, message):
+    monkeypatch.chdir(tmp_path)
+    args = _parser().parse_args(["convert", "-i", "x.fasta"] + argv)
+    with pytest.raises(SystemExit) as exc:
+        args.func(args)
+    assert exc.value.code == message
+    assert os.listdir(tmp_path) == []
+
+
+def test_run_per_pcr_error_exits_with_message(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    src = tmp_path / "in.fasta"
+    src.write_text(">S1\tt1-t2.t3-t4_1\t1_2_3\nACGT\n")
+    args = _parser().parse_args(["convert", "-i", str(src), "--per-pcr"])
+    with pytest.raises(SystemExit) as exc:
+        args.func(args)
+    assert exc.value.code == "Error: record 1 for sample S1 has 3 counts but 2 tag pairs"
