@@ -31,25 +31,43 @@ Both are avoidable because `dame filter` also writes `Comparisons_<X>PCRs.fasta`
 every sequence in every sample, unfiltered, with per-PCR counts, in the same record format as
 `FilteredReads.fna`.
 
-The fix is to separate the two jobs. Clustering still uses the filtered reads, so the choice of
-real OTUs is unchanged. The counts are then rebuilt by **mapping** every unfiltered read, per
-PCR, onto the OTU representative sequences with the user's own tool (`vsearch --usearch_global
---otutabout`, `usearch -otutab`, or another). Ji et al. (2025) built the occPlus OTU table this
-way. DAMe's part is to emit those per-PCR reads in a tool-agnostic format.
+The fix is to separate deciding which sequences are real from counting them. The filtered reads
+still define the set of DAMe-passed sequences, so that decision is unchanged. The counts are then
+rebuilt by **mapping** every unfiltered read, per PCR, onto those sequences with the user's own
+tool. Ji et al. (2025) built the occPlus OTU table this way. DAMe's part is to emit the per-PCR
+reads in a tool-agnostic format.
+
+The recommended recipe (tutorial) is map, then cluster:
+
+1. Dereplicate the DAMe-passed sequences into a reference FASTA (`convert -u` on
+   `FilteredReads.fna`, then `vsearch --derep_fulllength`). Do not pass `--max-length` here:
+   with `-u` it N-pads the reference, and padded sequences cannot match at 100%. Apply the same
+   `--min-length`/`--max-length` limits to both files so they cover the same length range.
+2. Map the per-PCR FASTA onto that reference at 100% identity (`vsearch --usearch_global --id 1.0
+   --otutabout`). This gives a per-PCR table with one column per passed sequence.
+3. Cluster the passed sequences into OTUs with any method, and sum the columns within each OTU.
+
+At 100% identity, a read is counted exactly when its sequence was accepted by DAMe in at least one
+sample: the motivating 1-read case is counted, and sequences that failed in every sample (errors,
+chimeras) match nothing and are dropped. The per-PCR FASTA contains those failed sequences too,
+so a user can instead map at a lower identity to let error variants add their reads to their
+parent sequence, at some risk of absorbing chimeras or rare relatives. Clustering first and then
+mapping onto OTU representatives also works. All of these use the same per-PCR FASTA.
 
 ### Scope
 
 - In: a `--per-pcr` mode for `convert`, a companion `PCRinfo.txt`, optional PSinfo
   cross-checking, tests, docs, version 3.2.0.
-- Out: clustering or mapping inside DAMe (users' tools vary by project, and reimplementing
-  similarity search twice is not worth it); `--sample-fastas` in per-PCR mode.
+- Out: clustering or mapping inside DAMe. Users' tools vary by project, and keeping mapping as an
+  explicit external step is more transparent and leaves the identity threshold to the user. Also
+  out: `--sample-fastas` in per-PCR mode.
 
 ---
 
 ## Interface
 
 ```
-dame convert -i Comparisons_3PCRs.fasta --per-pcr [--ps-info PSinfo.txt] [-u] [--min-length N] [--max-length N]
+dame convert -i Comparisons_3PCRs.fasta --per-pcr [--ps-info PSinfo.txt] [--min-length N] [--max-length N]
 ```
 
 Identical in `dame` (Rust) and `dame-py` (Python). `dame-py` also accepts single-dash aliases
@@ -59,7 +77,8 @@ consistent with the existing flags (`-perPCR`, `-psInfo`).
 |------|---------|
 | `--per-pcr` | Write each PCR's reads as separate records instead of summing counts per sample. A zero count has no reads, so it gets no record; its zero appears in the mapped OTU table, and a PCR with no reads at all is listed in `PCRinfo.txt` |
 | `--ps-info FILE` | Optional. Adds `pool` and real tag pairs for empty PCRs to `PCRinfo.txt`, lists samples with no reads, and cross-checks tag pairs |
-| `-u`, `--min-length`, `--max-length` | Unchanged meaning, applied to each per-PCR record |
+| `--min-length`, `--max-length` | Drop per-PCR records outside the length range. No N-padding in per-PCR mode |
+| `-u` | No effect in per-PCR mode, which always writes the `size=`/`sample=` label; a note is printed to stderr |
 | `-s` / `--sample-fastas` | Rejected in combination with `--per-pcr` |
 
 `--ps-info` without `--per-pcr` is rejected.
@@ -96,24 +115,25 @@ back the zeros this mode exists to avoid (see Warnings).
 
 ### Per-PCR FASTA
 
-- `-u`: `FilteredReads.perpcr.forusearch.fna`
-- default: `FilteredReads.perpcr.forsumaclust.fna`
+`FilteredReads.perpcr.fna`, a new name, so a per-sample run's output is never overwritten.
 
-New names, so a per-sample run's output is never overwritten.
+There is one label format. The file is input for mapping, and sumaclust does not map, so a
+sumaclust variant would have no consumer.
 
 For each input record that passes the length filters, and for each PCR k with count c > 0, write
 one record with the PCR ID `<sample>_PCR<k>`:
 
 ```
->SampleA_PCR2.17;size=1;sample=SampleA_PCR2;      (-u)
->SampleA_PCR2:17 count=1                          (default)
+>SampleA_PCR2.17;size=1;sample=SampleA_PCR2;
 ```
 
 - The trailing number is a running record counter across the whole output, starting at 1, in
   output order.
-- The explicit `sample=` annotation makes vsearch and usearch name the OTU table column
-  `SampleA_PCR2` whatever characters the sample name contains.
-- With `-u` and `--max-length`, sequences are N-padded to `--max-length`, as now.
+- The explicit `sample=` annotation makes vsearch and usearch name the table column
+  `SampleA_PCR2` whatever characters the sample name contains. Users of other mappers can split
+  the label on `;`.
+- Sequences are never N-padded. Padding was for old usearch clustering; in mapping, trailing Ns
+  are unmatched positions that lower identity and would reject real reads at `--id 1.0`.
 - Output order: input record order, and within a record, PCR 1 to X.
 
 ### `PCRinfo.txt`
@@ -123,7 +143,7 @@ order with `--ps-info`, else input order) then PCR number.
 
 | Column | Meaning |
 |--------|---------|
-| `pcr_id` | `<sample>_PCR<k>`, matching the FASTA `sample=` and the OTU table column |
+| `pcr_id` | `<sample>_PCR<k>`, matching the FASTA `sample=` and the mapped table's column |
 | `sample` | PSinfo sample name |
 | `pcr` | k, 1 to X |
 | `tag_pair` | `Ftag-Rtag`; `empty` for a PCR with no reads when `--ps-info` is not given |
@@ -164,6 +184,13 @@ filtered by --y/--t, so sequences that failed in a sample will appear as zeros.
 For per-PCR OTU tables, use Comparisons_<X>PCRs.fasta instead.
 ```
 
+**Note** (stderr, run continues): with `--per-pcr -u`:
+
+```
+Note: -u has no effect with --per-pcr; per-PCR output always uses the
+;size=N;sample=<pcr_id>; label and is never padded.
+```
+
 **Errors** (non-zero exit; message text identical in both implementations). Outputs are written
 to temporary files in the working directory and renamed only on success, so an error never leaves
 a partial FASTA or `PCRinfo.txt` under the final names:
@@ -198,10 +225,11 @@ PSinfo, covering:
 - zero counts produce no record; PCR numbers follow header position;
 - an `empty-empty` PCR, and a PSinfo sample with no records (`reads = 0` rows, real tag pair and
   pool with `--ps-info`, `empty` without);
-- length filters and `-u` padding on per-PCR records; record counter numbering;
+- length filters on per-PCR records, with no padding even when `--max-length` is given; record
+  counter numbering;
 - `PCRinfo.txt` with and without `--ps-info`, including sort order;
 - the PSinfo helper reproduces `makePSnumFiles` slot assignment, including a blank line;
-- the `FilteredReads` warning; rejected flag combinations;
+- the `FilteredReads` warning; the `-u` note; rejected flag combinations;
 - existing convert tests unchanged (default mode is byte-identical).
 
 **Malformed inputs** in `tests/fixtures/malformed/`, run by `tests/integration/run_malformed.sh`:
@@ -210,15 +238,16 @@ non-integer count, PSinfo tag mismatch, sample missing from PSinfo. Both impleme
 exit non-zero with the same message.
 
 **Parity:** `tests/integration/run_convert.sh` runs both implementations in per-PCR mode (with
-and without `--ps-info`, with and without `-u`) and compares the FASTA and `PCRinfo.txt` byte for
+and without `--ps-info`, and with length filters) and compares the FASTA and `PCRinfo.txt` byte for
 byte.
 
 **End to end:** `tests/integration/run_pipeline.sh` on the tutorial data runs sort, filter with
 `--y 2`, then `convert --per-pcr` on `Comparisons_2PCRs.fasta`, and checks that a (sample,
 sequence) pair absent from `FilteredReads.fna` is present in the per-PCR output. If `vsearch` is
-on PATH it also runs `--usearch_global --otutabout` against the OTU sequences and checks that the
-table's column names are a subset of `PCRinfo.txt`'s `pcr_id`; skipped otherwise, as the chimera
-tests treat `usearch`. If the tutorial data has no pair that fails `--y 2`, the fixture generator
+on PATH it also runs the tutorial recipe (dereplicate the passed sequences, `--usearch_global --id
+1.0 --otutabout`) and checks that the table's column names are a subset of `PCRinfo.txt`'s
+`pcr_id` and that the motivating pair has a non-zero cell; skipped otherwise, as the chimera tests
+treat `usearch`. If the tutorial data has no pair that fails `--y 2`, the fixture generator
 (`tutorial/generate_tutorial_data.py`) gains one.
 
 ---
@@ -228,9 +257,11 @@ tests treat `usearch`. If the tutorial data has no pair that fails `--y 2`, the 
 - **README.md:** the new flags and output files in the convert section and the pipeline summary;
   changelog entry 16 for v3.2.0.
 - **tutorial/README.md:** new section "Per-PCR OTU tables for occupancy and detection models":
-  the zeroing problem with a worked example, the recipe (cluster from the filtered reads; `convert
-  --per-pcr --ps-info` on `Comparisons`; map with vsearch; join the table to `PCRinfo.txt`; add
-  zero rows for empty PCRs), the `FilteredReads` caveat, and a note that Ji et al. (2025) built
+  the zeroing problem with a worked example; the map-then-cluster recipe from Background (`convert
+  --per-pcr --ps-info` on `Comparisons`; dereplicate the passed sequences; map with vsearch at
+  `--id 1.0`; cluster and sum columns; join to `PCRinfo.txt`; add zero rows for empty PCRs); why
+  100% is the default and what a lower identity changes; cluster-then-map as an alternative; the
+  `FilteredReads` caveat; and a note that Ji et al. (2025) built
   their occPlus table by mapping, with occJSDM as another consumer.
 - **Versions:** `python/pyproject.toml` and `rust/Cargo.toml` to 3.2.0.
 - **occJSDM (separate PR, later):** a one-line pointer to the tutorial section from Lesson 0's
