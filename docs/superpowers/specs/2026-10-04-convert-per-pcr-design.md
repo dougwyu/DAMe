@@ -51,10 +51,13 @@ combines sequences into OTUs:
    `vsearch --usearch_global perpcr.fna --db passed.fna --id 1.0 --mincols N --otutabout
    table.tsv`, where N is a little below the amplicon length (e.g. 300 for a 313-bp marker).
 4. Sum within OTUs, by either route:
-   - **Relabel (main route):** before step 3, rename each reference sequence to its OTU's name
-     from `clusters.uc`. `--otutabout` then sums hits on references that share a label, so the
-     table comes out with one row per OTU and one column per PCR. Verified with vsearch 2.31; the
-     tutorial names the version.
+   - **Annotate (main route):** before step 3, add each reference sequence's OTU from
+     `clusters.uc` as an annotation, keeping its own label unique: `>seq17;otu=OTU1;`. vsearch
+     takes the `--otutabout` row name from `otu=` and sums hits on sequences that share it, so the
+     table comes out with one row per OTU and one column per PCR. Renaming every member to the
+     bare OTU name gives the same table in vsearch, but duplicate FASTA labels break other tools
+     (`makeblastdb -parse_seqids`, `samtools faidx`) and lose the trail back to the sequence, so
+     the tutorial uses the annotation. Verified with vsearch 2.31; the tutorial names the version.
    - **By hand:** map onto the unrenamed reference, which gives a table with one row per passed
      sequence, then join to the membership and sum in R or Python. This keeps the sequence-level
      table, for trying other clusterings or LULU-style curation.
@@ -273,8 +276,8 @@ byte.
 **End to end:** `tests/integration/run_pipeline.sh` on the tutorial data runs sort, filter with
 `--y 2`, then `convert --per-pcr` on `Comparisons_2PCRs.fasta`, and checks that a (sample,
 sequence) pair absent from `FilteredReads.fna` is present in the per-PCR output. If `vsearch` is
-on PATH it also runs the tutorial recipe (dereplicate and cluster the passed sequences, relabel by
-OTU, `--usearch_global --id 1.0 --mincols N --otutabout`) and checks that the table's column names
+on PATH it also runs the tutorial recipe (dereplicate and cluster the passed sequences, annotate
+with `otu=`, `--usearch_global --id 1.0 --mincols N --otutabout`) and checks that the table's column names
 are a subset of `PCRinfo.txt`'s `pcr_id`, that the motivating pair has a non-zero cell, and that
 the table has one row per OTU; skipped otherwise, as the chimera tests
 treat `usearch`. If the tutorial data has no pair that fails `--y 2`, the fixture generator
@@ -289,7 +292,7 @@ treat `usearch`. If the tutorial data has no pair that fails `--y 2`, the fixtur
 - **tutorial/README.md:** new section "Per-PCR OTU tables for occupancy and detection models":
   the zeroing problem with a worked example; the recipe from Background (`convert --per-pcr
   --ps-info` on `Comparisons`; dereplicate and cluster the passed sequences; map with
-  `--usearch_global --id 1.0 --mincols N`; sum within OTUs by relabelling or by hand; join to
+  `--usearch_global --id 1.0 --mincols N`; sum within OTUs via `otu=` annotations or by hand; join to
   `PCRinfo.txt`; add zero columns for empty PCRs); the mapping-option findings above, including
   why `--id 1.0` needs `--mincols` and that `--minseqlength` does not filter reads; what a lower
   identity changes; the `FilteredReads` caveat; and a note that Ji et al. (2025) built
