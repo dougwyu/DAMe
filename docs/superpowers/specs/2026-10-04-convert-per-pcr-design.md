@@ -45,22 +45,22 @@ combines sequences into OTUs:
    `convert` here: with `-u` it N-pads the reference, and padded sequences cannot match exactly.
    Apply the length range at dereplication instead (`--minseqlength`/`--maxseqlength`), matching
    the `--min-length`/`--max-length` given to `convert --per-pcr`.
-2. Cluster the reference into OTUs with any method that reports membership (e.g. `vsearch
-   --cluster_size --id 0.97 --uc clusters.uc`).
-3. Map the per-PCR FASTA onto the reference at 100% identity with a minimum aligned length:
-   `vsearch --usearch_global perpcr.fna --db passed.fna --id 1.0 --mincols N --otutabout
-   table.tsv`, where N is a little below the amplicon length (e.g. 300 for a 313-bp marker).
-4. Sum within OTUs, by either route:
-   - **Annotate (main route):** before step 3, add each reference sequence's OTU from
-     `clusters.uc` as an annotation, keeping its own label unique: `>seq17;otu=OTU1;`. vsearch
-     takes the `--otutabout` row name from `otu=` and sums hits on sequences that share it, so the
-     table comes out with one row per OTU and one column per PCR. Renaming every member to the
-     bare OTU name gives the same table in vsearch, but duplicate FASTA labels break other tools
-     (`makeblastdb -parse_seqids`, `samtools faidx`) and lose the trail back to the sequence, so
-     the tutorial uses the annotation. Verified with vsearch 2.31; the tutorial names the version.
-   - **By hand:** map onto the unrenamed reference, which gives a table with one row per passed
-     sequence, then join to the membership and sum in R or Python. This keeps the sequence-level
-     table, for trying other clusterings or LULU-style curation.
+2. Map the per-PCR FASTA onto the reference: `vsearch --usearch_global perpcr.fna --db
+   passed.fna --id 1.0 --mincols N --query_cov 1.0 --otutabout table.tsv`, where N is a little
+   below the amplicon length (e.g. 300 for a 313-bp marker). Reference labels must be unique and
+   carry no `otu=` annotation, so `table.tsv` has one row per passed sequence and one column per
+   PCR.
+3. Cluster the reference into OTUs with any method that reports membership (e.g. `vsearch
+   --cluster_size --id 0.97 --uc clusters.uc`), and write the membership as a two-column table
+   (sequence, OTU).
+4. In R or Python, join `table.tsv` to the membership and sum the rows within each OTU. Keeping
+   the sequence-level table makes every step inspectable, and lets users try other clusterings or
+   LULU-style curation without remapping.
+
+(vsearch can also do step 4 itself: if each reference label carries its OTU as `;otu=OTU1;`,
+`--otutabout` sums rows by `otu=`. The tutorial mentions this as a shortcut only, because it hides
+the sequence-level table. Renaming every member to the bare OTU name instead gives duplicate FASTA
+labels, which break other tools such as `makeblastdb -parse_seqids` and `samtools faidx`.)
 
 Why these mapping options (each checked with vsearch 2.31 against a 313-bp reference):
 
@@ -69,21 +69,24 @@ Why these mapping options (each checked with vsearch 2.31 against a 313-bp refer
   full sequence. `--mincols N` sets the shortest acceptable match: with N = 300, reads of 313 and
   300 bp (from either end or the middle) were counted, 299 bp and a 300-bp read with one internal
   mismatch were not.
+- `--query_cov 1.0` requires every base of the read to be aligned, so with `--id 1.0` a read must
+  lie entirely within its reference and cannot be longer than it. vsearch has no `--maxcols`;
+  this is the equivalent. Without it, overhanging bases count as terminal gaps and are ignored: a
+  313-bp match plus 7 extra bases was accepted. `--maxqt 1.0` (query no longer than target) is not
+  enough: a 313-bp read shifted 10 bp off one end of a 313-bp reference passed `--maxqt 1.0` but
+  was rejected by `--query_cov 1.0`.
 - `--minseqlength` is not a read-length filter in searches: it discards reference sequences, not
   queries. A minimum read length can also be set upstream with `convert --per-pcr --min-length`.
-- Reads longer than the reference are also counted (a 313-bp match plus 7 overhanging bases was
-  accepted), since overhangs are terminal gaps too. Usually harmless, such as leftover primer; add
-  `--query_cov` to block it.
 - `--target_cov F` (fraction of the reference aligned) is the length-relative alternative to
   `--mincols`, for markers whose length varies widely; `--target_cov 0.958` matched `--mincols
   300` exactly on the 313-bp test.
 - A short read can match two passed sequences exactly when they differ only beyond its ends;
   vsearch then picks one. This is irrelevant when both are in the same OTU and rare otherwise.
 
-With these options, a read is counted when it matches a DAMe-passed sequence exactly over at least
-N bases: the motivating 1-read case is counted, and sequences that failed in every sample (errors,
+With these options, a read is counted when it is an exact, contained match of at least N bases to
+a DAMe-passed sequence: the motivating 1-read case is counted, and sequences that failed in every sample (errors,
 chimeras) match nothing and are dropped. The per-PCR FASTA contains those failed sequences too, so
-a user can instead map at a lower identity (`--id 0.97 --mincols N`) to let error variants add
+a user can instead map at a lower identity (`--id 0.97 --mincols N --query_cov 1.0`) to let error variants add
 their reads to their parent sequence, at some risk of absorbing chimeras or rare relatives.
 
 ### Scope
@@ -276,10 +279,10 @@ byte.
 **End to end:** `tests/integration/run_pipeline.sh` on the tutorial data runs sort, filter with
 `--y 2`, then `convert --per-pcr` on `Comparisons_2PCRs.fasta`, and checks that a (sample,
 sequence) pair absent from `FilteredReads.fna` is present in the per-PCR output. If `vsearch` is
-on PATH it also runs the tutorial recipe (dereplicate and cluster the passed sequences, annotate
-with `otu=`, `--usearch_global --id 1.0 --mincols N --otutabout`) and checks that the table's column names
-are a subset of `PCRinfo.txt`'s `pcr_id`, that the motivating pair has a non-zero cell, and that
-the table has one row per OTU; skipped otherwise, as the chimera tests
+on PATH it also runs the tutorial recipe (dereplicate the passed sequences, `--usearch_global --id
+1.0 --mincols N --query_cov 1.0 --otutabout`) and checks that the table's column names are a
+subset of `PCRinfo.txt`'s `pcr_id`, that its rows are the passed sequences, and that the
+motivating pair has a non-zero cell; skipped otherwise, as the chimera tests
 treat `usearch`. If the tutorial data has no pair that fails `--y 2`, the fixture generator
 (`tutorial/generate_tutorial_data.py`) gains one.
 
@@ -291,10 +294,12 @@ treat `usearch`. If the tutorial data has no pair that fails `--y 2`, the fixtur
   changelog entry 16 for v3.2.0.
 - **tutorial/README.md:** new section "Per-PCR OTU tables for occupancy and detection models":
   the zeroing problem with a worked example; the recipe from Background (`convert --per-pcr
-  --ps-info` on `Comparisons`; dereplicate and cluster the passed sequences; map with
-  `--usearch_global --id 1.0 --mincols N`; sum within OTUs via `otu=` annotations or by hand; join to
-  `PCRinfo.txt`; add zero columns for empty PCRs); the mapping-option findings above, including
-  why `--id 1.0` needs `--mincols` and that `--minseqlength` does not filter reads; what a lower
+  --ps-info` on `Comparisons`; dereplicate the passed sequences; map with
+  `--usearch_global --id 1.0 --mincols N --query_cov 1.0` to a sequence-level table; cluster and
+  sum rows within OTUs in R; transpose to one row per PCR and join to `PCRinfo.txt`, adding
+  all-zero rows for PCRs with no column), as an R snippet ending in occJSDM-style `info` and `OTU`;
+  the mapping-option findings above, including why `--id 1.0` needs `--mincols` and
+  `--query_cov 1.0` and that `--minseqlength` does not filter reads; the `otu=` shortcut; what a lower
   identity changes; the `FilteredReads` caveat; and a note that Ji et al. (2025) built
   their occPlus table by mapping, with occJSDM as another consumer.
 - **Versions:** `python/pyproject.toml` and `rust/Cargo.toml` to 3.2.0.
